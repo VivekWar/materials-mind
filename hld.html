@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MaterialMind AI - High Level Design (HLD)</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        h2 {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+            margin-top: 0;
+            color: var(--text-main);
+        }
+        .diagram-container {
+            text-align: center;
+            overflow-x: auto;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .component-card {
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+        .component-card h3 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+        code {
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#eff6ff', primaryBorderColor: '#2563eb', primaryTextColor: '#0f172a', lineType: 'basis' } });
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>MaterialMind AI</h1>
+        <p>System Architecture & High-Level Design (HLD)</p>
+    </div>
+
+    <div class="section">
+        <h2>1. Complete System Architecture</h2>
+        <p>The diagram below maps the complete data flow, highlighting the stateless Go API, the horizontal scaling strategy, and the Hybrid RAG "Fork in the Road" execution.</p>
+        
+        <div class="diagram-container">
+            <div class="mermaid">
+                graph TD
+                    Client[("💻 React Frontend (Vite, KaTeX, SSE)")]
+                    LB{"🌐 Cloud Load Balancer"}
+                    
+                    Client <-->|Secure HttpOnly Cookies & SSE| LB
+
+                    subgraph "Stateless Application Layer"
+                        API1["Go/Gin Server Node 1"]
+                        API2["Go/Gin Server Node 2"]
+                        APIN["Go/Gin Server Node N"]
+                    end
+
+                    LB --> API1
+                    LB --> API2
+                    LB --> APIN
+
+                    API1 --> Auth["🔐 JWT Auth & Rate Limiter Middleware"]
+                    Auth -.->|20 req/min| RedisCache[("📦 Redis Stack")]
+
+                    Auth -->|/search| SemCheck{"🧠 Semantic Cache Check"}
+                    
+                    SemCheck -- "Hit (Cosine > 0.98)" --> FastPath["⚡ Return Cached LLM Report"]
+                    FastPath -->|SSE| Client
+
+                    SemCheck -- "Miss" --> Fork(("Concurrency Engine<br/>(Goroutines)"))
+                    
+                    Fork -->|Path A| Gemini1["🤖 Gemini Flash<br/>(Intent Extraction)"]
+                    Fork -->|Path B| EmbedModel["🔢 text-embedding-004<br/>(Query Vectorization)"]
+
+                    Gemini1 -->|JSON Constraints| SQLBuild{"Build Hybrid SQL"}
+                    EmbedModel -->|Vector Array| SQLBuild
+
+                    SQLBuild -->|Execute| PGRead[("🐘 Postgres Read Replicas<br/>(HNSW Vector Search)")]
+                    
+                    PGRead -->|Top 10 IDs| ObjCache{"📦 Material Object Cache (Redis)"}
+                    ObjCache -- "Miss" --> PGPrimary[("🐘 Postgres Primary<br/>(Writes/Fallback)")]
+                    PGPrimary -.->|Hydrate| ObjCache
+
+                    ObjCache -->|Hydrated JSON| Synth["🤖 Gemini 2.5 Flash<br/>(Synthesis & Report)"]
+                    
+                    Synth -->|SSE Stream| Client
+                    Synth -.->|Async Update| ChatHistory["💬 Redis Sliding Window (Chat State)"]
+                    ChatHistory -.->|Background Sync| PGPrimary
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>2. Core Infrastructure Components</h2>
+        <div class="grid-2">
+            <div class="component-card">
+                <h3>The Edge Layer</h3>
+                <p><strong>React Frontend:</strong> Renders technical data via KaTeX. Connects to the backend using <code>credentials: 'include'</code> to pass secure cookies automatically.</p>
+                <p><strong>Load Balancer:</strong> Distributes user traffic across multiple Go instances. Scales automatically based on concurrent open SSE (Server-Sent Event) connections.</p>
+            </div>
+            
+            <div class="component-card">
+                <h3>The Application Layer</h3>
+                <p><strong>Go / Gin API:</strong> Strictly stateless application. Implements a "Fail-Fast" boot sequence. Uses Go <code>goroutines</code> and <code>sync.WaitGroup</code> to execute API calls to LLMs and databases concurrently, cutting latency by 50%.</p>
+            </div>
+
+            <div class="component-card">
+                <h3>The 3-Tier Cache (Redis Stack)</h3>
+                <ul>
+                    <li><strong>Semantic Cache:</strong> Uses Redis Vector Search to intercept duplicate queries (e.g., "drone frame" vs "frame for drone") and returns cached LLM text, saving API costs.</li>
+                    <li><strong>Object Cache:</strong> Maps Postgres IDs to complete JSON objects for 1ms retrieval of material parameters.</li>
+                    <li><strong>Sliding Window:</strong> Keeps active chat histories in fast memory, syncing to Postgres asynchronously.</li>
+                </ul>
+            </div>
+
+            <div class="component-card">
+                <h3>The Data Layer (PostgreSQL + pgvector)</h3>
+                <p><strong>Primary Node:</strong> Handles user authentication states, conversation history backups, and ETL data loading.</p>
+                <p><strong>Read Replicas:</strong> Handles all <code>HNSW</code> vector similarity searches (<code><=></code> operator). Because vector math is CPU-intensive, isolating it to replicas prevents database locking during high user traffic.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. Request Lifecycle (The Hybrid RAG Flow)</h2>
+        <ol>
+            <li><strong>Authentication:</strong> Request hits the Go API. Middleware verifies the HttpOnly JWT cookie and checks the IP against the Redis token-bucket rate limiter.</li>
+            <li><strong>Short-Circuit Check:</strong> The query is embedded and checked against the Redis Semantic Cache. If a >98% match exists, the cached response is returned immediately.</li>
+            <li><strong>The Fork in the Road:</strong> The request enters concurrent Goroutines. Path A extracts hard mathematical constraints (e.g., <code>yield > 500</code>). Path B generates the semantic vector.</li>
+            <li><strong>Hybrid Merge:</strong> The system builds a dynamic SQL query combining the exact <code>WHERE</code> clauses from Path A with the <code>ORDER BY vector</code> from Path B.</li>
+            <li><strong>Hydration:</strong> Top IDs are returned from Postgres. The Go server fetches the full material profiles from the Redis Object cache.</li>
+            <li><strong>Explainable AI:</strong> The hydrated context is passed to Gemini 2.5 Flash. The engineering report is streamed word-by-word back to the user via Server-Sent Events (SSE).</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>4. Interview Version (Simple Core System Design)</h2>
+        <p>Use this simplified version in interviews: "Client - API - Cache - Database - LLM". It keeps the core system design clear while still showing production thinking.</p>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+                graph LR
+                    U[User / React Client] --> A[Go API Gateway]
+                    A --> M[Auth + Rate Limit Middleware]
+                    M --> C{Redis Cache Hit?}
+                    C -- Yes --> S[SSE Response]
+                    C -- No --> R[Retriever: pgvector Search]
+                    R --> X[Context Builder]
+                    X --> L[Gemini Generation]
+                    L --> S
+                    S --> U
+                    R --> P[(Postgres)]
+                    C --> D[(Redis)]
+            </div>
+        </div>
+
+        <ol>
+            <li><strong>Client Layer:</strong> React UI sends query, receives streamed answer via SSE.</li>
+            <li><strong>API Layer:</strong> Go service handles auth, rate limit, orchestration, and streaming.</li>
+            <li><strong>Retrieval Layer:</strong> Redis cache first, then pgvector retrieval from Postgres.</li>
+            <li><strong>Intelligence Layer:</strong> LLM generates the answer from grounded context.</li>
+            <li><strong>State Layer:</strong> Chat/session metadata in Redis with periodic Postgres backup.</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>5. How To Improve Output Extraction Quality</h2>
+        <p>"Output extraction" can be made much stronger by making model outputs structured, validated, and observable.</p>
+        <div class="grid-2">
+            <div class="component-card">
+                <h3>A. Structured Extraction Contract</h3>
+                <ul>
+                    <li>Force LLM output to strict JSON schema (fields like <code>constraints</code>, <code>units</code>, <code>material_candidates</code>, <code>confidence</code>).</li>
+                    <li>Reject free-form responses for extraction step; retry automatically on schema failure.</li>
+                    <li>Normalize units (MPa, GPa, g/cm3) before SQL build to avoid wrong filtering.</li>
+                </ul>
+            </div>
+
+            <div class="component-card">
+                <h3>B. Better Retrieval + Ranking</h3>
+                <ul>
+                    <li>Use hybrid retrieval score: <code>alpha * vector_score + beta * constraint_match + gamma * recency</code>.</li>
+                    <li>Add reranker stage for top-20 candidates before final context packing.</li>
+                    <li>Store query-result feedback and continuously tune <code>alpha/beta/gamma</code>.</li>
+                </ul>
+            </div>
+
+            <div class="component-card">
+                <h3>C. Grounded Report Generation</h3>
+                <ul>
+                    <li>Prompt template should require each recommendation to cite source material IDs.</li>
+                    <li>Split output into fixed sections: <code>assumptions</code>, <code>selection logic</code>, <code>tradeoffs</code>, <code>final recommendation</code>.</li>
+                    <li>Flag low-confidence fields and explicitly ask user for missing constraints.</li>
+                </ul>
+            </div>
+
+            <div class="component-card">
+                <h3>D. Interview-Ready Metrics</h3>
+                <ul>
+                    <li><strong>Extraction validity:</strong> % outputs passing JSON schema.</li>
+                    <li><strong>Grounding rate:</strong> % claims backed by retrieved records.</li>
+                    <li><strong>P95 latency:</strong> end-to-end response latency with and without cache hit.</li>
+                    <li><strong>User correction rate:</strong> how often users must rephrase/refine prompts.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
