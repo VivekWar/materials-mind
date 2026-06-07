@@ -14,9 +14,11 @@ type NumericFilter struct {
 }
 
 type SearchIntent struct {
-	Category string          `json:"category,omitempty"`
-	Filters  []NumericFilter `json:"filters,omitempty"`
-	Terms    []string        `json:"terms,omitempty"`
+	Domain                  string   `json:"domain,omitempty"`
+	MinYieldStrength        *float64 `json:"min_yield_strength,omitempty"`
+	MinOperatingTemperature *float64 `json:"min_operating_temperature,omitempty"`
+	MaxDensity              *float64 `json:"max_density,omitempty"`
+	BudgetConstraint        string   `json:"budget_constraint,omitempty"`
 }
 
 type StructuredRecommendation struct {

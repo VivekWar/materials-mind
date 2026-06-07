@@ -17,7 +17,7 @@ import (
 var GeminiClient *genai.Client
 
 const (
-	EmbeddingModelName    = "text-embedding-004"
+	EmbeddingModelName    = "gemini-embedding-001"
 	GenerativeModelName   = "gemini-2.5-flash"
 	maxEmbeddingRetries   = 3
 	maxEmbeddingInputRune = 2000
@@ -61,7 +61,13 @@ func GetEmbedding(ctx context.Context, text string) ([]float32, error) {
 			if res == nil || res.Embedding == nil || len(res.Embedding.Values) == 0 {
 				return nil, errors.New("embedding model returned empty vector")
 			}
-			return res.Embedding.Values, nil
+			
+			values := res.Embedding.Values
+			// Truncate to 768 dimensions to match the PostgreSQL schema and python seed script
+			if len(values) > 768 {
+				values = values[:768]
+			}
+			return values, nil
 		}
 
 		lastErr = err

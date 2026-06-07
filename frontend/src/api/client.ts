@@ -9,7 +9,8 @@ const api = axios.create({
 
 function resolveBackendUrl(path: string): string {
   const baseURL = api.defaults.baseURL || ''
-  const apiRoot = baseURL.endsWith('/api/v1') ? `${baseURL.slice(0, -7)}/api` : `${baseURL}/api`
+  // Ensure we don't duplicate /api if baseURL already ends with it
+  const apiRoot = baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`
   return `${apiRoot}${path}`
 }
 
@@ -165,11 +166,6 @@ interface ApiMessage {
   content_text?: string
   tokens_used?: number
   created_at: string
-}
-
-export async function mockLogin(): Promise<AuthUser> {
-  const { data } = await api.post<{ user: AuthUser }>('/auth/mock-login')
-  return data.user
 }
 
 export async function googleLogin(credential: string): Promise<AuthUser> {

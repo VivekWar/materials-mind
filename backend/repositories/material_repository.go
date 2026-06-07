@@ -58,26 +58,32 @@ func (r *materialRepository) SearchByIntent(ctx context.Context, intent domain.S
 	clauses := []string{"(name ILIKE $1 OR category ILIKE $1 OR formula ILIKE $1 OR subcategory ILIKE $1)"}
 	args := []any{"%" + strings.ReplaceAll(query, " ", "%") + "%"}
 
-	if intent.Category != "" {
-		args = append(args, intent.Category)
-		clauses = append(clauses, fmt.Sprintf("category ILIKE $%d", len(args)))
+	if intent.Domain != "" {
+		args = append(args, "%"+intent.Domain+"%")
+		clauses = append(clauses, fmt.Sprintf("(category ILIKE $%d OR subcategory ILIKE $%d)", len(args), len(args)))
 	}
 
-	allowedFields := map[string]struct{}{
-		"density": {}, "yield_strength": {}, "youngs_modulus": {}, "thermal_conductivity": {}, "melting_point": {},
+	if intent.MinYieldStrength != nil {
+		args = append(args, *intent.MinYieldStrength)
+		clauses = append(clauses, fmt.Sprintf("yield_strength >= $%d", len(args)))
 	}
-	for _, filter := range intent.Filters {
-		if _, ok := allowedFields[filter.Field]; !ok {
-			continue
-		}
-		if filter.Minimum != nil {
-			args = append(args, *filter.Minimum)
-			clauses = append(clauses, fmt.Sprintf("%s >= $%d", filter.Field, len(args)))
-		}
-		if filter.Maximum != nil {
-			args = append(args, *filter.Maximum)
-			clauses = append(clauses, fmt.Sprintf("%s <= $%d", filter.Field, len(args)))
-		}
+
+	if intent.MaxDensity != nil {
+		args = append(args, *intent.MaxDensity)
+		clauses = append(clauses, fmt.Sprintf("density <= $%d", len(args)))
+	}
+
+	if intent.MinOperatingTemperature != nil {
+		minTemp := *intent.MinOperatingTemperature
+		args = append(args, minTemp)
+		argIdx1 := len(args)
+		args = append(args, minTemp+100) // safety factor
+		argIdx2 := len(args)
+		
+		clauses = append(clauses, fmt.Sprintf(`(
+			(glass_transition_temp >= $%d) OR 
+			(glass_transition_temp IS NULL AND melting_point >= $%d)
+		)`, argIdx1, argIdx2))
 	}
 
 	args = append(args, limit)

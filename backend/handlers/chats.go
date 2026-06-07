@@ -109,7 +109,7 @@ func (h *ChatHandler) AddMessage(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add message"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add message: " + err.Error()})
 		return
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,10 @@ import (
 	"github.com/vivekwar/materialmind/repositories"
 	"github.com/vivekwar/materialmind/services"
 	"github.com/vivekwar/materialmind/utils"
+	"github.com/gorilla/sessions"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/google"
 )
 
 func main() {
@@ -35,6 +40,23 @@ func main() {
 	chatHandler := handlers.NewChatHandler(chatSvc)
 	searchHandler := handlers.NewSearchHandler(searchSvc)
 
+	// 1.5 Goth OAuth Initialization
+	sessionSecret := os.Getenv("JWT_SECRET")
+	if sessionSecret == "" {
+		sessionSecret = "fallback-secret-for-dev"
+	}
+	store := sessions.NewCookieStore([]byte(sessionSecret))
+	store.MaxAge(86400 * 30) // 30 days
+	store.Options.Path = "/"
+	store.Options.HttpOnly = true
+	store.Options.Secure = false // Force false for local development
+	store.Options.SameSite = http.SameSiteLaxMode
+	gothic.Store = store
+
+	goth.UseProviders(
+		google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), "http://localhost:8080/api/auth/google/callback"),
+	)
+
 	// 2. Router Setup
 	r := gin.Default()
 	r.Use(corsMiddleware())
@@ -43,8 +65,8 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "MaterialMind API is active"})
 	})
-	r.POST("/api/auth/mock-login", handlers.MockLogin)
-	r.POST("/api/auth/google", handlers.GoogleLogin)
+	r.GET("/api/auth/:provider/login", handlers.GothLogin)
+	r.GET("/api/auth/:provider/callback", handlers.GothCallback)
 
 	// 4. Secure Routes (Protected by Auth & Rate Limiting)
 	protected := r.Group("/api")

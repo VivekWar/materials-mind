@@ -9,9 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +44,10 @@ func NewSearchService(repo repositories.MaterialRepository) SearchService {
 // performs parallel vector and SQL retrieval, applies domain multipliers, and prompts Gemini.
 func (s *searchService) ProcessSearch(ctx context.Context, query string, industryDomain string) (*domain.StructuredRecommendation, error) {
 	normalizedQuery := s.normalizeSearchQuery(query)
-	intent := s.extractSearchIntent(normalizedQuery)
+	intent, err := s.extractSearchIntent(ctx, normalizedQuery)
+	if err != nil {
+		log.Printf("intent extraction failed: %v", err)
+	}
 	intentBytes, _ := json.Marshal(intent)
 
 	cacheKey := s.cacheKeyFor("search:intent:v1", string(intentBytes)+":"+industryDomain)
@@ -76,9 +77,8 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 		}
 
 		categoryFilter := ""
-		if intent.Category != "" {
-			categoryFilter = intent.Category
-		}
+		// We no longer have a generic Category field in intent; it uses Domain. Wait, we can leave this blank or match domain.
+		// Since intent.Category is gone, we'll remove it.
 
 		out, qErr := s.repo.SearchByVector(ctx, v, maxSearchResults, categoryFilter)
 		vecCh <- resultOrErr{out, qErr}
@@ -154,74 +154,56 @@ func (s *searchService) normalizeSearchQuery(query string) string {
 	return strings.Join(strings.Fields(query), " ")
 }
 
-func (s *searchService) extractSearchIntent(query string) domain.SearchIntent {
-	lower := strings.ToLower(query)
-	intent := domain.SearchIntent{Terms: strings.Fields(lower)}
+func (s *searchService) extractSearchIntent(ctx context.Context, query string) (domain.SearchIntent, error) {
+	prompt := fmt.Sprintf(`You are a data extraction assistant for a materials engineering database.
+Extract physical requirements and business constraints from the user query into a JSON object.
 
-	categoryHints := map[string]string{
-		"metal": "Metal", "alloy": "Metal", "steel": "Metal", "aluminum": "Metal", "aluminium": "Metal", "titanium": "Metal",
-		"ceramic": "Ceramic", "oxide": "Ceramic", "carbide": "Ceramic", "nitride": "Ceramic",
-		"polymer": "Polymer", "plastic": "Polymer", "thermoplastic": "Polymer",
-		"composite": "Composite", "cfrp": "Composite", "gfrp": "Composite",
-		"semiconductor": "Semiconductor", "silicon": "Semiconductor",
-	}
-	for hint, category := range categoryHints {
-		if strings.Contains(lower, hint) {
-			intent.Category = category
-			break
-		}
-	}
+Output strictly this JSON schema (do not use markdown formatting, just raw JSON):
+{
+  "domain": "string (e.g. Aerospace, Automotive)",
+  "min_yield_strength": number (MPa),
+  "min_operating_temperature": number (Celsius),
+  "max_density": number (g/cm3),
+  "budget_constraint": "string (e.g. low, medium, high)"
+}
+Only populate fields that are explicitly or implicitly requested. For example, if 'lightweight' is requested, you may set a reasonable max_density (like 3.5). If 130C is requested, set min_operating_temperature.
 
-	fieldHints := map[string]string{
-		"density":              "density",
-		"lightweight":          "density",
-		"light":                "density",
-		"yield":                "yield_strength",
-		"strength":             "yield_strength",
-		"stiff":                "youngs_modulus",
-		"modulus":              "youngs_modulus",
-		"thermal conductivity": "thermal_conductivity",
-		"conductivity":         "thermal_conductivity",
-		"melting":              "melting_point",
-		"temperature":          "melting_point",
-		"tg":                   "glass_transition_temp",
-		"glass transition":     "glass_transition_temp",
-		"heat deflection":      "heat_deflection_temp",
-		"hdt":                  "heat_deflection_temp",
+User Query: %s`, query)
+
+	if GeminiClient == nil {
+		return domain.SearchIntent{}, errors.New("gemini client not initialized")
+	}
+	model := GeminiClient.GenerativeModel(GenerativeModelName)
+	// Optionally set response mime type to json to ensure validity, but it's supported on specific gemini models.
+	
+	var resp *genai.GenerateContentResponse
+	var err error
+	utils.Backoff(ctx, 2, 500*time.Millisecond, 2*time.Second, func() error {
+		resp, err = model.GenerateContent(ctx, genai.Text(prompt))
+		return err
+	})
+
+	if err != nil {
+		return domain.SearchIntent{}, err
 	}
 
-	numberPattern := regexp.MustCompile(`(?i)(above|over|greater than|at least|min(?:imum)?|below|under|less than|at most|max(?:imum)?)\s+([0-9]+(?:\.[0-9]+)?)`)
-	for _, match := range numberPattern.FindAllStringSubmatch(lower, -1) {
-		value, err := strconv.ParseFloat(match[2], 64)
-		if err != nil {
-			continue
-		}
-		field := ""
-		for hint, candidate := range fieldHints {
-			if strings.Contains(lower, hint) {
-				field = candidate
-				break
-			}
-		}
-		if field == "" {
-			continue
-		}
-		filter := domain.NumericFilter{Field: field}
-		op := match[1]
-		if strings.Contains(op, "above") || strings.Contains(op, "over") || strings.Contains(op, "greater") || strings.Contains(op, "least") || strings.HasPrefix(op, "min") {
-			filter.Minimum = &value
-		} else {
-			filter.Maximum = &value
-		}
-		intent.Filters = append(intent.Filters, filter)
+	text, extErr := s.extractModelText(resp)
+	if extErr != nil {
+		return domain.SearchIntent{}, extErr
 	}
 
-	if strings.Contains(lower, "lightweight") || strings.Contains(lower, "low density") {
-		maxDensity := 5.0
-		intent.Filters = append(intent.Filters, domain.NumericFilter{Field: "density", Maximum: &maxDensity})
+	var intent domain.SearchIntent
+	clean := strings.TrimSpace(text)
+	clean = strings.TrimPrefix(clean, "```json")
+	clean = strings.TrimPrefix(clean, "```")
+	clean = strings.TrimSuffix(clean, "```")
+	clean = strings.TrimSpace(clean)
+	
+	if err := json.Unmarshal([]byte(clean), &intent); err != nil {
+		return domain.SearchIntent{}, fmt.Errorf("failed to parse intent json: %w", err)
 	}
 
-	return intent
+	return intent, nil
 }
 
 func (s *searchService) cacheKeyFor(prefix, value string) string {
@@ -310,10 +292,17 @@ func (s *searchService) generateStructuredRecommendation(
 func (s *searchService) buildStructuredRecommendationPrompt(query string, industryDomain string, candidates []domain.MaterialCandidate) string {
 	var materialContext strings.Builder
 	for _, candidate := range candidates {
-		materialContext.WriteString(
-			fmt.Sprintf("- [ID:%d] %s | Category: %s | Yield Strength: %.2f MPa\n",
-				candidate.ID, candidate.Name, candidate.Category, candidate.YieldStrength),
-		)
+		if candidate.YieldStrength > 0 {
+			materialContext.WriteString(
+				fmt.Sprintf("- [ID:%d] %s | Category: %s | Yield Strength: %.2f MPa\n",
+					candidate.ID, candidate.Name, candidate.Category, candidate.YieldStrength),
+			)
+		} else {
+			materialContext.WriteString(
+				fmt.Sprintf("- [ID:%d] %s | Category: %s\n",
+					candidate.ID, candidate.Name, candidate.Category),
+			)
+		}
 	}
 
 	domainContext := ""
@@ -321,7 +310,8 @@ func (s *searchService) buildStructuredRecommendationPrompt(query string, indust
 		domainContext = fmt.Sprintf("Industry Domain Context: %s\n", industryDomain)
 	}
 
-	return fmt.Sprintf(`You are a senior materials engineer.
+	return fmt.Sprintf(`You are a strict Principal Materials Engineer. Evaluate the provided retrieved materials against the user's prompt. You must strictly penalize materials that violate stated business constraints like 'budget', 'cheap', or 'mass production'. If a highly performant material violates the cost constraint, you must rank a cheaper, viable alternative higher. Do not recommend exotic composites for 'cheap' applications unless absolutely no metal or standard polymer meets the physical constraints.
+
 User query: %q
 
 %s

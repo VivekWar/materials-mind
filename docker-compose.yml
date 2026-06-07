@@ -15,18 +15,17 @@ services:
     restart: always
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: bitnami/pgbouncer:latest
     container_name: materialmind_pgbouncer
     environment:
-      DB_USER: postgres
-      DB_PASSWORD: password123
-      DB_HOST: postgres
-      DB_PORT: 5432
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 20
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: password123
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      PGBOUNCER_DATABASE: materialmind
+      PGBOUNCER_POOL_MODE: transaction
     ports:
-      - "6432:5432"
+      - "6432:6432"
     depends_on:
       - postgres
     restart: always

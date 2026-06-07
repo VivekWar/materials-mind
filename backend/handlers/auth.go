@@ -2,18 +2,15 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/markbates/goth/gothic"
 	"github.com/vivekwar/materialmind/db"
 	"github.com/vivekwar/materialmind/utils"
-	"google.golang.org/api/idtoken"
 )
-
-type googleLoginRequest struct {
-	Credential string `json:"credential" binding:"required"`
-}
 
 type authUser struct {
 	UserID string `json:"user_id"`
@@ -21,52 +18,39 @@ type authUser struct {
 	Name   string `json:"name,omitempty"`
 }
 
-func MockLogin(c *gin.Context) {
-	user, err := upsertUser(c.Request.Context(), "engineer@materialmind.ai", "MaterialMind Engineer", "mock", "firebase_uid_123")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
-		return
-	}
-
-	issueSessionCookie(c, user.UserID)
-	c.JSON(http.StatusOK, gin.H{"message": "login successful", "user": user})
+func GothLogin(c *gin.Context) {
+	provider := c.Param("provider")
+	req := c.Request.WithContext(context.WithValue(c.Request.Context(), gothic.ProviderParamKey, provider))
+	gothic.BeginAuthHandler(c.Writer, req)
 }
 
-func GoogleLogin(c *gin.Context) {
-	clientID := os.Getenv("GOOGLE_CLIENT_ID")
-	if clientID == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GOOGLE_CLIENT_ID is not configured"})
-		return
-	}
+func GothCallback(c *gin.Context) {
+	provider := c.Param("provider")
+	req := c.Request.WithContext(context.WithValue(c.Request.Context(), gothic.ProviderParamKey, provider))
 
-	var req googleLoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid Google credential"})
-		return
-	}
+	log.Printf("GothCallback received cookies: %v", c.Request.Cookies())
 
-	payload, err := idtoken.Validate(c.Request.Context(), req.Credential, clientID)
+	gothUser, err := gothic.CompleteUserAuth(c.Writer, req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid Google credential"})
+		log.Printf("GothCallback error: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "OAuth authentication failed: " + err.Error()})
 		return
 	}
 
-	email, _ := payload.Claims["email"].(string)
-	name, _ := payload.Claims["name"].(string)
-	sub, _ := payload.Claims["sub"].(string)
-	if email == "" || sub == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Google credential is missing profile claims"})
-		return
-	}
-
-	user, err := upsertUser(c.Request.Context(), email, name, "google", sub)
+	authUser, err := upsertUser(c.Request.Context(), gothUser.Email, gothUser.Name, gothUser.Provider, gothUser.UserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		log.Printf("Database error in upsertUser: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
 		return
 	}
 
-	issueSessionCookie(c, user.UserID)
-	c.JSON(http.StatusOK, gin.H{"message": "login successful", "user": user})
+	issueSessionCookie(c, authUser.UserID)
+
+	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
+	if frontendOrigin == "" {
+		frontendOrigin = "http://localhost:5173"
+	}
+	c.Redirect(http.StatusFound, frontendOrigin)
 }
 
 func Me(c *gin.Context) {

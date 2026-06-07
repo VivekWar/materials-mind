@@ -13,7 +13,6 @@ import {
   AuthUser,
   getMe,
   googleLogin,
-  mockLogin,
   pingStatus,
 } from './api/client'
 
@@ -43,65 +42,8 @@ const navigateTo = (path: string) => {
   }
 }
 
-const AuthScreen: React.FC<{ onAuthenticated: (user: AuthUser) => void }> = ({ onAuthenticated }) => {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
-
-  useEffect(() => {
-    if (!googleClientId) return
-
-    const mountGoogleButton = () => {
-      const target = document.getElementById('google-login-button')
-      if (!target || !window.google?.accounts?.id) return
-
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
-          if (!response.credential) return
-          setLoading(true)
-          setError('')
-          try {
-            onAuthenticated(await googleLogin(response.credential))
-          } catch {
-            setError('Google sign-in failed.')
-          } finally {
-            setLoading(false)
-          }
-        },
-      })
-      target.innerHTML = ''
-      window.google.accounts.id.renderButton(target, {
-        theme: 'outline',
-        size: 'large',
-        width: 260,
-      })
-    }
-
-    if (window.google?.accounts?.id) {
-      mountGoogleButton()
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = mountGoogleButton
-    document.head.appendChild(script)
-  }, [googleClientId, onAuthenticated])
-
-  const useDevLogin = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      onAuthenticated(await mockLogin())
-    } catch {
-      setError('Development login failed.')
-    } finally {
-      setLoading(false)
-    }
-  }
+const AuthScreen: React.FC = () => {
+  const loginUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api'}/auth/google/login`
 
   return (
     <div className="home-page">
@@ -112,12 +54,10 @@ const AuthScreen: React.FC<{ onAuthenticated: (user: AuthUser) => void }> = ({ o
             <h1>Materials Mind</h1>
             <p>Sign in to keep your material decisions, reports, and follow-up context attached to your account.</p>
             <div className="home-hero-actions">
-              {googleClientId && <div id="google-login-button" />}
-              <button type="button" className="home-cta" onClick={useDevLogin} disabled={loading}>
-                <LogIn size={16} /> Dev login
-              </button>
+              <a href={loginUrl} className="home-cta" style={{ textDecoration: 'none' }}>
+                <LogIn size={16} /> Login with Google
+              </a>
             </div>
-            {error && <p className="chat-history-empty">{error}</p>}
           </div>
         </section>
       </main>
@@ -197,7 +137,7 @@ const ChatWorkspace: React.FC = () => {
   }
 
   if (!user) {
-    return <AuthScreen onAuthenticated={setUser} />
+    return <AuthScreen />
   }
 
   return (
