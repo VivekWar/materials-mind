@@ -36,7 +36,11 @@ Create a `.env` file in the repository root:
 GEMINI_API_KEY=your_gemini_api_key
 DATABASE_URL=postgres://postgres:password123@localhost:5433/materialmind
 PORT=8080
-VITE_API_URL=http://localhost:8080/api/v1
+JWT_SECRET=replace_with_a_long_random_secret
+GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
+FRONTEND_ORIGIN=http://localhost:5173
+VITE_API_URL=http://localhost:8080/api
+VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
 ```
 
 ### 3. Start PostgreSQL and Redis

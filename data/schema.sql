@@ -71,6 +71,14 @@ CREATE INDEX IF NOT EXISTS idx_mat_formula          ON materials(formula);
 CREATE INDEX IF NOT EXISTS idx_mat_name_trgm 
     ON materials USING GIN (name gin_trgm_ops);
 
+-- Trigram indexes for other text fields queried with ILIKE
+CREATE INDEX IF NOT EXISTS idx_mat_category_trgm 
+    ON materials USING GIN (category gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_mat_formula_trgm 
+    ON materials USING GIN (formula gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_mat_subcategory_trgm 
+    ON materials USING GIN (subcategory gin_trgm_ops);
+
 -- Backward-compatible migration for existing DBs
 ALTER TABLE materials ADD COLUMN IF NOT EXISTS glass_transition_temp FLOAT;
 ALTER TABLE materials ADD COLUMN IF NOT EXISTS heat_deflection_temp FLOAT;
@@ -104,6 +112,60 @@ CREATE TABLE IF NOT EXISTS material_embeddings (
     updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_mat_embeddings_ivfflat
-    ON material_embeddings USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_mat_embeddings_hnsw
+    ON material_embeddings USING hnsw (embedding vector_cosine_ops);
+
+-- ----------------------------------------------------------------
+--  Users, Chats and Messages (conversation persistence)
+-- ----------------------------------------------------------------
+-- Users table stores authenticated users. Use BIGSERIAL for easy indexing
+CREATE TABLE IF NOT EXISTS users (
+    id            BIGSERIAL PRIMARY KEY,
+    email         TEXT UNIQUE NOT NULL,
+    full_name     TEXT,
+    avatar_url    TEXT,
+    provider      TEXT, -- e.g. google
+    provider_id   TEXT, -- id from provider
+    metadata      JSONB,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE TABLE IF NOT EXISTS chats (
+    id            BIGSERIAL PRIMARY KEY,
+    -- store user identifiers as TEXT to remain compatible with existing user tables
+    user_id       TEXT,
+    title         TEXT,
+    state         JSONB,      -- e.g. routing info, last run context
+    is_active     BOOLEAN DEFAULT TRUE,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
+
+-- Messages are the atomic chat turns. Content is stored as JSONB
+CREATE TABLE IF NOT EXISTS messages (
+    id            BIGSERIAL PRIMARY KEY,
+    -- keep chat_id as BIGINT (no FK) so creation stays safe across DBs
+    chat_id       BIGINT,
+    sender_role   TEXT NOT NULL, -- 'user' | 'assistant' | 'system'
+    sender_id     TEXT,        -- optional link to users.id when sender is a user
+    content       JSONB NOT NULL, -- structured payload (report, metadata, citations)
+    content_text  TEXT,          -- simple text fallback for UI rendering / search
+    tokens_used   INT DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure columns exist on preexisting `messages` tables before creating indexes
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS chat_id BIGINT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_id TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+
+-- Backfill-safe upgrades (idempotent)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS content_text TEXT;

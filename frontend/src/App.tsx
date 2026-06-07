@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react'
-import { Circle, Menu, Plus, Sparkles, X } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Circle, LogIn, Menu, Plus, Sparkles, X } from 'lucide-react'
 import './styles/index.css'
 import './styles/chat.css'
 import './styles/chat-history.css'
@@ -8,8 +8,27 @@ import { ChatPanel } from './components/ChatPanel'
 import { ChatHistory } from './components/ChatHistory'
 import { HomePage } from './components/HomePage'
 import { Button } from './components/ui'
-import { chatFollowup, pingStatus, recommend, searchStructured } from './api/client'
-import { useChatStorage, ChatMessage } from './hooks/useChatStorage'
+import { useChat } from './hooks/useChat'
+import {
+  AuthUser,
+  getMe,
+  googleLogin,
+  mockLogin,
+  pingStatus,
+} from './api/client'
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (options: { client_id: string; callback: (response: { credential?: string }) => void }) => void
+          renderButton: (element: HTMLElement, options: Record<string, unknown>) => void
+        }
+      }
+    }
+  }
+}
 
 type ApiStatus = 'checking' | 'online' | 'offline'
 
@@ -24,17 +43,118 @@ const navigateTo = (path: string) => {
   }
 }
 
-const ChatWorkspace: React.FC = () => {
+const AuthScreen: React.FC<{ onAuthenticated: (user: AuthUser) => void }> = ({ onAuthenticated }) => {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+
+  useEffect(() => {
+    if (!googleClientId) return
+
+    const mountGoogleButton = () => {
+      const target = document.getElementById('google-login-button')
+      if (!target || !window.google?.accounts?.id) return
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response.credential) return
+          setLoading(true)
+          setError('')
+          try {
+            onAuthenticated(await googleLogin(response.credential))
+          } catch {
+            setError('Google sign-in failed.')
+          } finally {
+            setLoading(false)
+          }
+        },
+      })
+      target.innerHTML = ''
+      window.google.accounts.id.renderButton(target, {
+        theme: 'outline',
+        size: 'large',
+        width: 260,
+      })
+    }
+
+    if (window.google?.accounts?.id) {
+      mountGoogleButton()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = mountGoogleButton
+    document.head.appendChild(script)
+  }, [googleClientId, onAuthenticated])
+
+  const useDevLogin = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      onAuthenticated(await mockLogin())
+    } catch {
+      setError('Development login failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="home-page">
+      <main className="home-main">
+        <section className="home-hero">
+          <div className="home-hero-copy">
+            <div className="home-kicker">Secure workspace</div>
+            <h1>Materials Mind</h1>
+            <p>Sign in to keep your material decisions, reports, and follow-up context attached to your account.</p>
+            <div className="home-hero-actions">
+              {googleClientId && <div id="google-login-button" />}
+              <button type="button" className="home-cta" onClick={useDevLogin} disabled={loading}>
+                <LogIn size={16} /> Dev login
+              </button>
+            </div>
+            {error && <p className="chat-history-empty">{error}</p>}
+          </div>
+        </section>
+      </main>
+    </div>
+  )
+}
+
+const ChatWorkspace: React.FC = () => {
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
 
-  const chatStorage = useChatStorage()
+  const {
+    sessions,
+    activeSessionId,
+    activeSession,
+    loading,
+    sendMessage,
+    selectSession,
+    createNewSession,
+  } = useChat(!!user)
+
+  useEffect(() => {
+    getMe()
+      .then((nextUser) => {
+        setUser(nextUser)
+      })
+      .catch(() => {
+        setUser(null)
+      })
+      .finally(() => setAuthChecked(true))
+  }, [])
 
   useEffect(() => {
     let mounted = true
-
     const checkApiHealth = async () => {
       const ok = await pingStatus()
       if (mounted) {
@@ -51,12 +171,6 @@ const ChatWorkspace: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (chatStorage.isLoaded && chatStorage.sessions.length === 0) {
-      chatStorage.createSession()
-    }
-  }, [chatStorage.isLoaded, chatStorage.sessions.length, chatStorage])
-
-  useEffect(() => {
     const syncSidebarForViewport = () => {
       const isMobile = window.innerWidth <= 980
       setIsMobileViewport(isMobile)
@@ -68,126 +182,30 @@ const ChatWorkspace: React.FC = () => {
     return () => window.removeEventListener('resize', syncSidebarForViewport)
   }, [])
 
-  const activeSession = chatStorage.getActiveSession()
+  const handleSelectSession = (id: string) => {
+    selectSession(id)
+    if (window.innerWidth <= 980) setIsSidebarOpen(false)
+  }
 
-  const handleSendMessage = useCallback(async (query: string) => {
-    const text = query.trim()
-    if (!text || loading || !activeSession) {
-      return
-    }
+  const handleCreateSession = () => {
+    void createNewSession()
+    if (window.innerWidth <= 980) setIsSidebarOpen(false)
+  }
 
-    if (activeSession.messages.length === 0) {
-      const title = text.length > 52 ? `${text.slice(0, 52)}...` : text
-      chatStorage.renameSession(activeSession.id, title)
-    }
+  if (!authChecked) {
+    return <div className="home-page" />
+  }
 
-    const userMsg: ChatMessage = {
-      id: `${Date.now()}-user`,
-      type: 'user',
-      originalQuery: text,
-      query: text,
-      timestamp: Date.now(),
-    }
-    chatStorage.addMessage(activeSession.id, userMsg)
-
-    setLoading(true)
-    try {
-      const assistantMessages = activeSession.messages.filter((msg) => msg.type === 'assistant')
-      const shouldRunFullRecommendation = assistantMessages.length === 0
-
-      if (shouldRunFullRecommendation) {
-        let res: any
-        try {
-          const structuredRes = await searchStructured(text)
-          res = {
-            recommendations: [],
-            report: structuredRes.report,
-            structured_result: structuredRes.structured_result,
-            tokens_used: 0,
-          }
-        } catch {
-          // Fallback keeps existing UX if structured SSE endpoint is unavailable.
-          res = await recommend(text, 'Overall (Top 1000)')
-        }
-
-        const assistantMsg: ChatMessage = {
-          id: `${Date.now()}-assistant`,
-          type: 'assistant',
-          response: res,
-          timestamp: Date.now(),
-          tokens: res.tokens_used,
-        }
-        chatStorage.addMessage(activeSession.id, assistantMsg)
-      } else {
-        const history = activeSession.messages.slice(-10).map((msg) => ({
-          role: msg.type,
-          content: msg.type === 'user'
-            ? (msg.originalQuery || msg.query || '')
-            : (msg.response?.report || ''),
-        }))
-        const firstAssistant = assistantMessages[0]
-        const topRecommendations = (firstAssistant?.response?.recommendations || [])
-          .slice(0, 3)
-          .map((item: any) => item?.name)
-          .filter(Boolean)
-
-        const follow = await chatFollowup({
-          message: text,
-          history,
-          initial_report: firstAssistant?.response?.report || '',
-          top_recommendations: topRecommendations,
-        })
-
-        const assistantMsg: ChatMessage = {
-          id: `${Date.now()}-assistant`,
-          type: 'assistant',
-          response: {
-            recommendations: [],
-            report: follow.reply,
-            tokens_used: follow.tokens_used || 0,
-          },
-          timestamp: Date.now(),
-          tokens: follow.tokens_used || 0,
-        }
-        chatStorage.addMessage(activeSession.id, assistantMsg)
-      }
-    } catch {
-      const assistantMsg: ChatMessage = {
-        id: `${Date.now()}-assistant-error`,
-        type: 'assistant',
-        response: {
-          recommendations: [],
-          report: 'I could not reach the follow-up chat endpoint. Please try again in a moment.',
-          tokens_used: 0,
-        },
-        timestamp: Date.now(),
-      }
-      chatStorage.addMessage(activeSession.id, assistantMsg)
-    } finally {
-      setLoading(false)
-    }
-  }, [activeSession, chatStorage, loading])
-
-  const handleSelectSession = useCallback((sessionId: string) => {
-    chatStorage.setActiveSessionId(sessionId)
-    if (window.innerWidth <= 980) {
-      setIsSidebarOpen(false)
-    }
-  }, [chatStorage])
-
-  const handleCreateSession = useCallback(() => {
-    chatStorage.createSession()
-    if (window.innerWidth <= 980) {
-      setIsSidebarOpen(false)
-    }
-  }, [chatStorage])
+  if (!user) {
+    return <AuthScreen onAuthenticated={setUser} />
+  }
 
   return (
     <div className={`app-shell ${!isMobileViewport && !isSidebarOpen ? 'sidebar-collapsed' : ''}`}>
       <aside className={`app-sidebar ${isSidebarOpen ? 'is-open' : ''}`}>
         <ChatHistory
-          sessions={chatStorage.sessions}
-          activeSessionId={chatStorage.activeSessionId}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
           onSelectSession={handleSelectSession}
           onCreateNewSession={handleCreateSession}
         />
@@ -236,7 +254,7 @@ const ChatWorkspace: React.FC = () => {
             <div className="chat-column chat-column--full">
               <ChatPanel
                 messages={activeSession.messages}
-                onSendMessage={handleSendMessage}
+                onSendMessage={sendMessage}
                 loading={loading}
               />
             </div>

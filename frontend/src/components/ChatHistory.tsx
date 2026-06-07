@@ -1,6 +1,6 @@
 import React from 'react'
 import { Clock3, MessageSquareText, Plus } from 'lucide-react'
-import { ChatSession } from '../hooks/useChatStorage'
+import { ChatSession } from '../api/client'
 import { Badge, Button, Card, CardDescription, CardHeader, CardTitle, ScrollArea } from './ui'
 import '../styles/chat-history.css'
 

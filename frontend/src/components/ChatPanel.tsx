@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { ArrowUp, Bot, Check, Copy, Sparkles, User } from 'lucide-react'
-import { ChatMessage } from '../hooks/useChatStorage'
+import { ChatMessage } from '../api/client'
 import { Button, Textarea } from './ui'
 import '../styles/chat.css'
 

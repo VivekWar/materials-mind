@@ -1,11 +1,15 @@
-package handlers
+package services
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/vivekwar/materialmind/domain"
 )
 
 func TestParseStructuredRecommendation_WithCodeFence(t *testing.T) {
+	s := &searchService{}
+
 	raw := "```json\n{\n" +
 		"  \"recommended_material\": \"Ti-6Al-4V\",\n" +
 		"  \"why_it_matches\": [\"high strength-to-weight\", \"good fatigue\"],\n" +
@@ -16,7 +20,7 @@ func TestParseStructuredRecommendation_WithCodeFence(t *testing.T) {
 		"  \"report\": \"Best overall match for aerospace load case.\"\n" +
 		"}\n```"
 
-	rec, err := parseStructuredRecommendation(raw)
+	rec, err := s.parseStructuredRecommendation(raw)
 	if err != nil {
 		t.Fatalf("expected parse success, got error: %v", err)
 	}
@@ -33,19 +37,21 @@ func TestParseStructuredRecommendation_WithCodeFence(t *testing.T) {
 }
 
 func TestParseStructuredRecommendation_InvalidJSON(t *testing.T) {
-	_, err := parseStructuredRecommendation("{not-json")
+	s := &searchService{}
+	_, err := s.parseStructuredRecommendation("{not-json")
 	if err == nil {
 		t.Fatal("expected parse error, got nil")
 	}
 }
 
 func TestValidateRecommendation_SuccessNormalizesFields(t *testing.T) {
-	candidates := []materialCandidate{
+	s := &searchService{}
+	candidates := []domain.MaterialCandidate{
 		{ID: 4, Name: "A", Category: "X", YieldStrength: 100},
 		{ID: 2, Name: "B", Category: "Y", YieldStrength: 200},
 	}
 
-	rec := &structuredRecommendation{
+	rec := &domain.StructuredRecommendation{
 		RecommendedMaterial: "Material-B",
 		WhyItMatches:        []string{"meets strength", "good processing"},
 		TradeOffs:           []string{"higher cost"},
@@ -55,7 +61,7 @@ func TestValidateRecommendation_SuccessNormalizesFields(t *testing.T) {
 		Report:              "Recommended due to balanced strength and manufacturability.",
 	}
 
-	err := validateRecommendation(rec, candidates)
+	err := s.validateRecommendation(rec, candidates)
 	if err != nil {
 		t.Fatalf("expected validation success, got error: %v", err)
 	}
@@ -70,8 +76,9 @@ func TestValidateRecommendation_SuccessNormalizesFields(t *testing.T) {
 }
 
 func TestValidateRecommendation_FailsForOutOfRangeConfidenceScore(t *testing.T) {
-	candidates := []materialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
-	rec := &structuredRecommendation{
+	s := &searchService{}
+	candidates := []domain.MaterialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
+	rec := &domain.StructuredRecommendation{
 		RecommendedMaterial: "Material-A",
 		WhyItMatches:        []string{"match"},
 		TradeOffs:           []string{"trade"},
@@ -81,7 +88,7 @@ func TestValidateRecommendation_FailsForOutOfRangeConfidenceScore(t *testing.T) 
 		Report:              "Short report.",
 	}
 
-	err := validateRecommendation(rec, candidates)
+	err := s.validateRecommendation(rec, candidates)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -91,8 +98,9 @@ func TestValidateRecommendation_FailsForOutOfRangeConfidenceScore(t *testing.T) 
 }
 
 func TestValidateRecommendation_FailsForUnknownSource(t *testing.T) {
-	candidates := []materialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
-	rec := &structuredRecommendation{
+	s := &searchService{}
+	candidates := []domain.MaterialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
+	rec := &domain.StructuredRecommendation{
 		RecommendedMaterial: "Material-A",
 		WhyItMatches:        []string{"match"},
 		TradeOffs:           []string{"trade"},
@@ -102,7 +110,7 @@ func TestValidateRecommendation_FailsForUnknownSource(t *testing.T) {
 		Report:              "Short report.",
 	}
 
-	err := validateRecommendation(rec, candidates)
+	err := s.validateRecommendation(rec, candidates)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
@@ -112,7 +120,8 @@ func TestValidateRecommendation_FailsForUnknownSource(t *testing.T) {
 }
 
 func TestNormalizeSearchQuery(t *testing.T) {
-	out := normalizeSearchQuery("  titanium   frame\n\tfor   drone ")
+	s := &searchService{}
+	out := s.normalizeSearchQuery("  titanium   frame\n\tfor   drone ")
 	if out != "titanium frame for drone" {
 		t.Fatalf("unexpected normalized query: %q", out)
 	}

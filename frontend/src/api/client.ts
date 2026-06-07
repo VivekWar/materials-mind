@@ -1,9 +1,10 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 180000,
+  withCredentials: true,
 })
 
 function resolveBackendUrl(path: string): string {
@@ -126,6 +127,168 @@ export interface FollowUpChatResponse {
   tokens_used: number
 }
 
+export interface AuthUser {
+  user_id: string
+  email: string
+  name?: string
+}
+
+export interface ChatMessage {
+  id: string
+  type: 'user' | 'assistant'
+  originalQuery?: string
+  query?: string
+  response?: any
+  timestamp: number
+  tokens?: number
+}
+
+export interface ChatSession {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  createdAt: number
+  updatedAt: number
+}
+
+interface ApiChat {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+interface ApiMessage {
+  id: number
+  sender_role: 'user' | 'assistant' | 'system'
+  content: any
+  content_text?: string
+  tokens_used?: number
+  created_at: string
+}
+
+export async function mockLogin(): Promise<AuthUser> {
+  const { data } = await api.post<{ user: AuthUser }>('/auth/mock-login')
+  return data.user
+}
+
+export async function googleLogin(credential: string): Promise<AuthUser> {
+  const { data } = await api.post<{ user: AuthUser }>('/auth/google', { credential })
+  return data.user
+}
+
+export async function getMe(): Promise<AuthUser> {
+  const res = await fetch(resolveBackendUrl('/auth/me'), {
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    throw new Error(`me failed: HTTP ${res.status}`)
+  }
+  const data = await res.json() as { user: AuthUser }
+  return data.user
+}
+
+export async function logout(): Promise<void> {
+  await fetch(resolveBackendUrl('/auth/logout'), {
+    method: 'POST',
+    credentials: 'include',
+  })
+}
+
+function mapApiMessage(msg: ApiMessage): ChatMessage {
+  const timestamp = new Date(msg.created_at).getTime()
+  if (msg.sender_role === 'user') {
+    const text = typeof msg.content?.text === 'string' ? msg.content.text : (msg.content_text || '')
+    return {
+      id: String(msg.id),
+      type: 'user',
+      originalQuery: text,
+      query: text,
+      timestamp,
+      tokens: msg.tokens_used || 0,
+    }
+  }
+
+  return {
+    id: String(msg.id),
+    type: 'assistant',
+    response: msg.content?.response || msg.content,
+    timestamp,
+    tokens: msg.tokens_used || 0,
+  }
+}
+
+function mapApiChat(chat: ApiChat, messages: ChatMessage[] = []): ChatSession {
+  return {
+    id: String(chat.id),
+    title: chat.title,
+    messages,
+    createdAt: new Date(chat.created_at).getTime(),
+    updatedAt: new Date(chat.updated_at).getTime(),
+  }
+}
+
+export async function createChat(title = 'New chat'): Promise<ChatSession> {
+  const res = await fetch(resolveBackendUrl('/chat/create'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ title }),
+  })
+  if (!res.ok) {
+    throw new Error(`create chat failed: HTTP ${res.status}`)
+  }
+  const data = await res.json() as { chat: ApiChat }
+  return mapApiChat(data.chat)
+}
+
+export async function listChats(): Promise<ChatSession[]> {
+  const res = await fetch(resolveBackendUrl('/chat/list'), {
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    throw new Error(`list chats failed: HTTP ${res.status}`)
+  }
+  const data = await res.json() as { chats: ApiChat[] }
+  return (data.chats || []).map((chat) => mapApiChat(chat))
+}
+
+export async function getChatMessages(chatId: string): Promise<ChatMessage[]> {
+  const res = await fetch(resolveBackendUrl(`/chat/${chatId}/messages`), {
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    throw new Error(`get messages failed: HTTP ${res.status}`)
+  }
+  const data = await res.json() as { messages: ApiMessage[] }
+  return (data.messages || []).map(mapApiMessage)
+}
+
+export async function addChatMessage(
+  chatId: string,
+  message: Pick<ChatMessage, 'type' | 'originalQuery' | 'query' | 'response' | 'tokens'>,
+): Promise<ChatMessage> {
+  const isUser = message.type === 'user'
+  const text = isUser ? (message.originalQuery || message.query || '') : (message.response?.report || '')
+  const content = isUser ? { text } : { response: message.response }
+
+  const res = await fetch(resolveBackendUrl(`/chat/${chatId}/messages`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      sender_role: isUser ? 'user' : 'assistant',
+      content,
+      content_text: text,
+      tokens_used: message.tokens || 0,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error(`add message failed: HTTP ${res.status}`)
+  }
+  return mapApiMessage(await res.json() as ApiMessage)
+}
+
 export async function recommend(query: string, domain: string, constraints?: Constraint[]): Promise<RecommendResponse> {
   const payload: any = { query, domain }
   if (constraints && constraints.length > 0) {
@@ -135,7 +298,21 @@ export async function recommend(query: string, domain: string, constraints?: Con
       value: c.value,
     }))
   }
-  const { data } = await api.post<RecommendResponse>('/recommend', payload)
+  let data: RecommendResponse
+  try {
+    const res = await api.post<RecommendResponse>('/recommend', payload)
+    data = res.data
+  } catch {
+    const structured = await searchStructured(query)
+    return {
+      query,
+      extracted_intent: { filters: {}, category: '', sort_by: '', sort_dir: '' },
+      recommendations: [],
+      structured_result: structured.structured_result,
+      report: structured.report,
+      tokens_used: 0,
+    }
+  }
 
   const recommendations = data.recommendations || []
   const topRecommendations = recommendations.slice(0, 3)
@@ -277,10 +454,12 @@ export async function ping(): Promise<void> {
 
 export async function pingStatus(): Promise<boolean> {
   try {
-    await api.options('/recommend', {
-      validateStatus: (status) => status >= 200 && status < 500,
+    const baseURL = api.defaults.baseURL || 'http://localhost:8080/api'
+    const root = baseURL.endsWith('/api') ? baseURL.slice(0, -4) : baseURL.replace(/\/api\/v1$/, '')
+    const res = await fetch(`${root}/health`, {
+      credentials: 'include',
     })
-    return true
+    return res.ok
   } catch {
     return false
   }
