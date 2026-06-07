@@ -10,11 +10,12 @@ import (
 )
 
 type ChatHandler struct {
-	chatSvc services.ChatService
+	chatSvc   services.ChatService
+	searchSvc services.SearchService
 }
 
-func NewChatHandler(chatSvc services.ChatService) *ChatHandler {
-	return &ChatHandler{chatSvc: chatSvc}
+func NewChatHandler(chatSvc services.ChatService, searchSvc services.SearchService) *ChatHandler {
+	return &ChatHandler{chatSvc: chatSvc, searchSvc: searchSvc}
 }
 
 type CreateChatRequest struct {
@@ -139,4 +140,33 @@ func parseChatID(c *gin.Context) (int64, bool) {
 		return 0, false
 	}
 	return chatID, true
+}
+
+func (h *ChatHandler) GenerateTitle(c *gin.Context) {
+	userID := c.GetString("user_id")
+	chatID, ok := parseChatID(c)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		Query string `json:"query" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	title, err := h.searchSvc.GenerateTitle(c.Request.Context(), req.Query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate title"})
+		return
+	}
+
+	if err := h.chatSvc.UpdateChatTitle(c.Request.Context(), chatID, userID, title); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update chat title"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"title": title})
 }

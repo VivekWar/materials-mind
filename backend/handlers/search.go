@@ -43,12 +43,6 @@ func (h *SearchHandler) HybridSearch(c *gin.Context) {
 
 	recommendation, err := h.searchSvc.ProcessSearch(c.Request.Context(), req.Query, req.IndustryDomain)
 	if err != nil {
-		if err.Error() == "no matching materials found" {
-			c.SSEvent("message", "I could not find matching materials for this query. Please add more constraints like strength, weight, temperature, or budget.")
-			c.SSEvent("done", "true")
-			c.Writer.Flush()
-			return
-		}
 		c.SSEvent("error", "An error occurred while processing your search.")
 		c.Writer.Flush()
 		return

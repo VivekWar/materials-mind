@@ -15,8 +15,9 @@ type ChatRepository interface {
 	GetChat(ctx context.Context, chatID int64, userID string) (*domain.Chat, error)
 	ArchiveChat(ctx context.Context, chatID int64, userID string) error
 	
-	GetMessages(ctx context.Context, chatID int64) ([]domain.Message, error)
+	GetMessages(ctx context.Context, chatID int64, userID string) ([]domain.Message, error)
 	AddMessage(ctx context.Context, chatID int64, senderRole string, senderID *string, content json.RawMessage, contentText *string, tokensUsed int32) (*domain.Message, error)
+	UpdateChatTitle(ctx context.Context, chatID int64, userID string, title string) error
 }
 
 type chatRepository struct {
@@ -106,16 +107,18 @@ func (r *chatRepository) ArchiveChat(ctx context.Context, chatID int64, userID s
 	return nil
 }
 
-func (r *chatRepository) GetMessages(ctx context.Context, chatID int64) ([]domain.Message, error) {
+func (r *chatRepository) GetMessages(ctx context.Context, chatID int64, userID string) ([]domain.Message, error) {
 	rows, err := r.pool.Query(
 		ctx,
 		`
-		SELECT id, chat_id, sender_role, sender_id, content, content_text, tokens_used, created_at
-		FROM messages
-		WHERE chat_id = $1
-		ORDER BY created_at ASC, id ASC
+		SELECT m.id, m.chat_id, m.sender_role, m.sender_id, m.content, m.content_text, m.tokens_used, m.created_at
+		FROM messages m
+		JOIN chats c ON m.chat_id = c.id
+		WHERE m.chat_id = $1 AND c.user_id = $2
+		ORDER BY m.created_at ASC, m.id ASC
 		`,
 		chatID,
+		userID,
 	)
 	if err != nil {
 		return nil, err
@@ -170,4 +173,21 @@ func (r *chatRepository) AddMessage(ctx context.Context, chatID int64, senderRol
 	}
 
 	return &msg, nil
+}
+
+func (r *chatRepository) UpdateChatTitle(ctx context.Context, chatID int64, userID string, title string) error {
+	tag, err := r.pool.Exec(
+		ctx,
+		`UPDATE chats SET title = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
+		title,
+		chatID,
+		userID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }

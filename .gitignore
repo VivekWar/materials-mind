@@ -50,4 +50,5 @@ __pycache__/
 *.temp
 *.pid
 *.pid.lock
-*.seed
+*.seed.gitignore
+backend/materialmind

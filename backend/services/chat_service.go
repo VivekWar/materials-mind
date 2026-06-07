@@ -18,6 +18,7 @@ type ChatService interface {
 	GetMessages(ctx context.Context, chatID int64, userID string) ([]domain.Message, error)
 	AddMessage(ctx context.Context, chatID int64, userID string, senderRole string, content json.RawMessage, contentText *string, tokensUsed int32) (*domain.Message, error)
 	ArchiveChat(ctx context.Context, chatID int64, userID string) error
+	UpdateChatTitle(ctx context.Context, chatID int64, userID string, title string) error
 }
 
 type chatService struct {
@@ -53,7 +54,7 @@ func (s *chatService) GetMessages(ctx context.Context, chatID int64, userID stri
 		}
 	}
 
-	msgs, err := s.repo.GetMessages(ctx, chatID)
+	msgs, err := s.repo.GetMessages(ctx, chatID, userID)
 	if err == nil && db.RedisClient != nil {
 		if bytes, err := json.Marshal(msgs); err == nil {
 			db.RedisClient.Set(ctx, cacheKey, bytes, 1*time.Hour)
@@ -84,4 +85,8 @@ func (s *chatService) AddMessage(ctx context.Context, chatID int64, userID strin
 
 func (s *chatService) ArchiveChat(ctx context.Context, chatID int64, userID string) error {
 	return s.repo.ArchiveChat(ctx, chatID, userID)
+}
+
+func (s *chatService) UpdateChatTitle(ctx context.Context, chatID int64, userID string, title string) error {
+	return s.repo.UpdateChatTitle(ctx, chatID, userID, title)
 }

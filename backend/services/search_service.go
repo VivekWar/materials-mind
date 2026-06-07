@@ -30,6 +30,7 @@ const (
 type SearchService interface {
 	ProcessSearch(ctx context.Context, query string, industryDomain string) (*domain.StructuredRecommendation, error)
 	ProcessFollowup(ctx context.Context, req domain.FollowUpChatRequest) (*domain.FollowUpChatResponse, error)
+	GenerateTitle(ctx context.Context, query string) (string, error)
 }
 
 type searchService struct {
@@ -126,7 +127,14 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 	}
 
 	if len(merged) == 0 {
-		return nil, errors.New("no matching materials found")
+		return &domain.StructuredRecommendation{
+			RecommendedMaterial: "None Found",
+			Confidence:          "Low",
+			ConfidenceScore:     0.0,
+			WhyItMatches:        []string{"No materials in the database meet your strict physical or thermal constraints."},
+			TradeOffs:           []string{"Consider relaxing your temperature or strength requirements."},
+			Report:              "I could not find matching materials for this query. Please add more constraints like strength, weight, temperature, or budget.",
+		}, nil
 	}
 
 	// Apply Domain-Awareness Multiplier
@@ -563,4 +571,37 @@ func (s *searchService) cacheFollowup(ctx context.Context, key string, value dom
 	if err := db.RedisClient.Set(ctx, key, string(payload), searchCacheTTL).Err(); err != nil {
 		log.Printf("follow-up cache set failed: %v", err)
 	}
+}
+
+func (s *searchService) GenerateTitle(ctx context.Context, query string) (string, error) {
+	client := GeminiClient
+	if client == nil {
+		return "New chat", errors.New("gemini client not initialized")
+	}
+
+	model := client.GenerativeModel("gemini-2.5-flash")
+	model.SetTemperature(0.7)
+
+	prompt := fmt.Sprintf(`Generate a very concise, 2-to-4 word topic title for a chat session based on this user's first message. 
+Do not include quotes or punctuation. Just the title.
+
+User Message: "%s"`, query)
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "New chat", err
+	}
+
+	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+		part := resp.Candidates[0].Content.Parts[0]
+		if textPart, ok := part.(genai.Text); ok {
+			title := strings.TrimSpace(string(textPart))
+			title = strings.Trim(title, "\"'")
+			if title != "" {
+				return title, nil
+			}
+		}
+	}
+
+	return "New chat", nil
 }

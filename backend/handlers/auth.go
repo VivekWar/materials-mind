@@ -50,7 +50,7 @@ func GothCallback(c *gin.Context) {
 	if frontendOrigin == "" {
 		frontendOrigin = "http://localhost:5173"
 	}
-	c.Redirect(http.StatusFound, frontendOrigin)
+	c.Redirect(http.StatusFound, frontendOrigin+"/chat")
 }
 
 func Me(c *gin.Context) {

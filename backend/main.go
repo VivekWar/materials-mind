@@ -37,7 +37,7 @@ func main() {
 	chatSvc := services.NewChatService(chatRepo)
 	searchSvc := services.NewSearchService(materialRepo)
 
-	chatHandler := handlers.NewChatHandler(chatSvc)
+	chatHandler := handlers.NewChatHandler(chatSvc, searchSvc)
 	searchHandler := handlers.NewSearchHandler(searchSvc)
 
 	// 1.5 Goth OAuth Initialization
@@ -87,6 +87,7 @@ func main() {
 		protected.GET("/chat/:chat_id/messages", chatHandler.GetMessages)
 		protected.POST("/chat/:chat_id/messages", chatHandler.AddMessage)
 		protected.POST("/chat/:chat_id/archive", chatHandler.ArchiveChat)
+		protected.POST("/chat/:chat_id/title/generate", chatHandler.GenerateTitle)
 	}
 
 	// 5. Boot Server
