@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -19,11 +20,20 @@ func InitRedis() {
 		redisAddr = "localhost:6379"
 	}
 
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: "",
-		DB:       0,
-	})
+	var client *redis.Client
+	if strings.HasPrefix(redisAddr, "redis://") || strings.HasPrefix(redisAddr, "rediss://") {
+		opts, err := redis.ParseURL(redisAddr)
+		if err != nil {
+			log.Fatalf("Critical: Failed to parse Redis URL: %v", err)
+		}
+		client = redis.NewClient(opts)
+	} else {
+		client = redis.NewClient(&redis.Options{
+			Addr:     redisAddr,
+			Password: "",
+			DB:       0,
+		})
+	}
 
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		log.Fatalf("Critical: Redis is unreachable. Error: %v", err)

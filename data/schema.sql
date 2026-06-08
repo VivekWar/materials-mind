@@ -4,6 +4,7 @@
 -- ================================================================
 
 -- Enable extensions
+SET search_path = public;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- for fuzzy name search
 CREATE EXTENSION IF NOT EXISTS unaccent;  -- for accent-insensitive search
 CREATE EXTENSION IF NOT EXISTS vector;    -- for semantic vector retrieval

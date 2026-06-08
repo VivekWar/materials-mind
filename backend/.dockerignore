@@ -1,0 +1,23 @@
+# Pre-compiled binary (we rebuild inside Docker)
+materialmind
+main
+
+# Local environment files — secrets must NEVER be in the image
+.env
+.env.*
+!.env.hf.example
+
+# Test and data files
+*_test.go
+*.test
+
+# Editor and OS artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Go test cache and build cache
+.cache/

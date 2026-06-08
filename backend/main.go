@@ -50,8 +50,15 @@ func main() {
 	store.MaxAge(86400 * 30) // 30 days
 	store.Options.Path = "/"
 	store.Options.HttpOnly = true
-	store.Options.Secure = false // Force false for local development
-	store.Options.SameSite = http.SameSiteLaxMode
+	// Use Secure=true in production (GIN_MODE=release) so cookies are sent over HTTPS.
+	// In local dev (GIN_MODE unset or "debug"), keep it false so HTTP works.
+	isProduction := os.Getenv("GIN_MODE") == "release"
+	store.Options.Secure = isProduction
+	if isProduction {
+		store.Options.SameSite = http.SameSiteNoneMode // Required for cross-site cookies (HF Space → CF Pages)
+	} else {
+		store.Options.SameSite = http.SameSiteLaxMode
+	}
 	gothic.Store = store
 
 	backendURL := os.Getenv("BACKEND_URL")
@@ -69,6 +76,25 @@ func main() {
 	// 3. Public Routes
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "MaterialMind API is active"})
+	})
+
+	// Detailed health check for load balancers and monitoring
+	r.GET("/healthz", func(c *gin.Context) {
+		dbOK := db.Pool != nil && db.Pool.Ping(c.Request.Context()) == nil
+		redisOK := db.RedisClient != nil && db.RedisClient.Ping(c.Request.Context()).Err() == nil
+		status := "healthy"
+		httpCode := 200
+		if !dbOK || !redisOK {
+			status = "degraded"
+			httpCode = 503
+		}
+		c.JSON(httpCode, gin.H{
+			"status":    status,
+			"db":        boolStatus(dbOK),
+			"redis":     boolStatus(redisOK),
+			"version":   "1.0.0",
+			"gin_mode":  os.Getenv("GIN_MODE"),
+		})
 	})
 	r.GET("/api/auth/:provider/login", handlers.GothLogin)
 	r.GET("/api/auth/:provider/callback", handlers.GothCallback)
@@ -150,4 +176,11 @@ func corsMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func boolStatus(ok bool) string {
+	if ok {
+		return "ok"
+	}
+	return "unreachable"
 }
