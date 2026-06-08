@@ -2,71 +2,51 @@ name: Deploy Backend to Hugging Face Spaces
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend.yml'
-  workflow_dispatch: # Allow manual trigger
-
-concurrency:
-  group: deploy-backend-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
-    name: Build Docker Image & Push to HF Space
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Hugging Face (via HF token)
-        run: |
-          echo "${{ secrets.HF_TOKEN }}" | docker login registry.hf.space \
-            --username "${{ secrets.HF_USERNAME }}" \
-            --password-stdin
-
-      - name: Build and push Docker image to HF Space registry
-        uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: registry.hf.space/${{ secrets.HF_USERNAME }}/${{ secrets.HF_SPACE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            BUILD_DATE=${{ github.run_id }}
-            GIT_SHA=${{ github.sha }}
+          fetch-depth: 0
 
-      - name: Trigger HF Space restart
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
-          curl -X POST \
-            "https://huggingface.co/api/spaces/${{ secrets.HF_USERNAME }}/${{ secrets.HF_SPACE_NAME }}/restart" \
-            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
-            --fail-with-body
-
-      - name: Wait for Space to become healthy
-        run: |
-          echo "Waiting for HF Space to start..."
-          # HF Space URL format: https://{username}-{space-name}.hf.space
-          SPACE_URL="https://${{ secrets.HF_USERNAME }}-${{ secrets.HF_SPACE_NAME }}.hf.space"
-          # Replace underscores with hyphens (HF converts them in URLs)
-          SPACE_URL="${SPACE_URL//_/-}"
-          echo "Polling: $SPACE_URL/health"
-          for i in $(seq 1 24); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SPACE_URL/health")
-            echo "Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Backend is healthy!"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "❌ Backend did not become healthy within 4 minutes"
-          exit 1
+          # Configure Git
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          # Clone the HF Space repo into a temporary directory
+          git clone https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME hf-space
+          
+          # Remove existing files in HF Space (excluding .git)
+          cd hf-space
+          find . -maxdepth 1 ! -name '.git' ! -name '.' ! -name '..' -exec rm -rf {} +
+          cd ..
+          
+          # Copy backend files to HF Space
+          cp -a backend/. hf-space/
+          
+          # Commit and Push
+          cd hf-space
+          git add .
+          
+          # Only commit and push if there are changes
+          if ! git diff --staged --quiet; then
+            git commit -m "Deploy backend from GitHub Actions (Commit: ${{ github.sha }})"
+            git push origin main
+          else
+            echo "No changes to deploy."
+          fi
