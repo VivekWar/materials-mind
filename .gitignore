@@ -1,12 +1,18 @@
 # Environment files (secrets must never be committed)
 .env
-.env.local
-.env.development.local
-.env.test.local
-# .env.production is intentionally tracked — it contains only PUBLIC values
-# (API URL + Google client ID). Actual secrets go into CI/CD environment vars.
-!.env.production
+.env.*
+*.env
+*.env.*
 
+# Virtual environments
+.venv/
+data/.venv/
+venv/
+ENV/
+
+# Database dumps
+data/*_dump.sql
+data/local_dump.sql
 # Dependencies
 node_modules/
 backend/node_modules/
