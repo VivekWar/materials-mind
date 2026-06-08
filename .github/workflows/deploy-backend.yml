@@ -54,9 +54,13 @@ jobs:
       - name: Wait for Space to become healthy
         run: |
           echo "Waiting for HF Space to start..."
+          # HF Space URL format: https://{username}-{space-name}.hf.space
+          SPACE_URL="https://${{ secrets.HF_USERNAME }}-${{ secrets.HF_SPACE_NAME }}.hf.space"
+          # Replace underscores with hyphens (HF converts them in URLs)
+          SPACE_URL="${SPACE_URL//_/-}"
+          echo "Polling: $SPACE_URL/health"
           for i in $(seq 1 24); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://${{ secrets.HF_USERNAME }}-${{ secrets.HF_SPACE_NAME }}.hf.space/health")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SPACE_URL/health")
             echo "Attempt $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
               echo "✅ Backend is healthy!"
