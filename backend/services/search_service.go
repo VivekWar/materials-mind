@@ -29,6 +29,7 @@ const (
 // SearchService defines the interface for core retrieval and generation logic.
 type SearchService interface {
 	ProcessSearch(ctx context.Context, query string, industryDomain string) (*domain.StructuredRecommendation, error)
+	ProcessSearchStream(ctx context.Context, query string, industryDomain string) (<-chan domain.StreamEvent, error)
 	ProcessFollowup(ctx context.Context, req domain.FollowUpChatRequest) (*domain.FollowUpChatResponse, error)
 	GenerateTitle(ctx context.Context, query string) (string, error)
 }
@@ -348,7 +349,7 @@ Return only valid JSON (no markdown, no code fences) with this exact shape:
 
 Formatting & System Rules:
 - "sources" must only include IDs from retrieved materials.
-- "confidence_score" must be a number from 0.0 to 1.0.
+- "confidence_score" must be a precise float between 0.000 and 1.000 (e.g., 0.914, 0.867) representing the mathematical fit of the constraints. Do not use rounded multiples of 0.05.
 - "report" should be highly detailed and comprehensive, referencing the chosen material and key trade-offs in depth.
 - Do not include extra keys.`, query, domainContext, materialContext.String())
 }
@@ -543,7 +544,7 @@ When users challenge your recommendations or ask follow-up questions, apply thes
 Conversation history:
 %s
 
-Initial engineering report:
+My initial analysis/recommendation:
 %s
 
 Top recommendations:
@@ -553,8 +554,9 @@ User follow-up:
 %s
 
 System Rules:
-- Answer only the user's follow-up question.
-- Stay grounded in the report and recommendation list above.
+- Answer the user's follow-up question directly in a conversational, first-person tone (e.g., "I recommended X because...").
+- Do NOT refer to "the report" in the third person. Take ownership of the previous analysis.
+- Stay grounded in your initial analysis and the recommendation list above.
 - Do not invent new material properties.
 - Provide a highly detailed, comprehensive explanation.`, historyBuilder.String(), strings.TrimSpace(req.InitialReport), topRecommendations.String(), strings.TrimSpace(req.Message))
 }
@@ -629,4 +631,31 @@ User Message: "%s"`, query)
 	}
 
 	return fallbackTitle(query), nil
+}
+
+func (s *searchService) ProcessSearchStream(ctx context.Context, query string, industryDomain string) (<-chan domain.StreamEvent, error) {
+	out := make(chan domain.StreamEvent, 100)
+	
+	go func() {
+		defer close(out)
+		
+		recommendation, err := s.ProcessSearch(ctx, query, industryDomain)
+		if err != nil {
+			out <- domain.StreamEvent{Type: "error", Data: "An error occurred while processing your search."}
+			return
+		}
+
+		structuredJSON, err := json.Marshal(recommendation)
+		if err != nil {
+			out <- domain.StreamEvent{Type: "error", Data: "Failed to format generated response"}
+			return
+		}
+
+		out <- domain.StreamEvent{Type: "structured_result", Data: string(structuredJSON)}
+		
+		out <- domain.StreamEvent{Type: "message", Data: recommendation.Report}
+		out <- domain.StreamEvent{Type: "done", Data: "true"}
+	}()
+	
+	return out, nil
 }

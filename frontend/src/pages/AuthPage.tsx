@@ -31,11 +31,11 @@ const AuthPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <span className="w-16">DB</span>
-              <span className="text-zinc-300">12,403 materials loaded</span>
+              <span className="text-zinc-300">Extensive material database</span>
             </div>
             <div className="flex items-center gap-4">
               <span className="w-16">LATENCY</span>
-              <span className="text-green-400">14ms average retrieval</span>
+              <span className="text-green-400">Sub-second retrieval latency</span>
             </div>
           </div>
         </div>

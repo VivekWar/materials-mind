@@ -23,7 +23,7 @@ type CreateChatRequest struct {
 }
 
 type AddMessageRequest struct {
-	SenderRole  string          `json:"sender_role" binding:"required,oneof=user assistant system"`
+	SenderRole  string          `json:"sender_role" binding:"required,oneof=user assistant"`
 	Content     json.RawMessage `json:"content" binding:"required"`
 	ContentText *string         `json:"content_text"`
 	TokensUsed  int32           `json:"tokens_used"`

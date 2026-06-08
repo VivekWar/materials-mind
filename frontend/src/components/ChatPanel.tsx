@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { ArrowRight, Check, Copy, Layers, Target, AlertTriangle, ShieldCheck, Square, User, Database, Download } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
 import { ChatMessage, StructuredRecommendation } from '../api/client'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
@@ -89,7 +90,11 @@ const AssistantLoadingSkeleton: React.FC<{ streamingContent: string }> = ({ stre
 
         {hasContent ? (
           <div className="prose prose-sm dark:prose-invert max-w-none font-sans">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]} 
+              rehypePlugins={[rehypeSanitize]}
+              components={{ code: CodeBlock }}
+            >
               {streamingContent}
             </ReactMarkdown>
             <span className="streaming-cursor" aria-hidden="true" />
@@ -107,7 +112,7 @@ const AssistantLoadingSkeleton: React.FC<{ streamingContent: string }> = ({ stre
 }
 
 // ── Data Sheet Pane (Right Side) ─────────────────────────────────────────────
-const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming?: boolean }> = ({ structured, streaming }) => {
+const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming?: boolean; onCandidateClick?: (name: string) => void }> = ({ structured, streaming, onCandidateClick }) => {
   if (!structured && !streaming) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
@@ -146,7 +151,7 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
         {structured.confidence && (
           <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-sm border border-border bg-background text-[10px] font-mono uppercase tracking-widest">
             <ShieldCheck size={12} className="text-primary" />
-            Confidence: {Math.round((structured.confidence_score || 0.9) * 100)}%
+            Confidence: {((structured.confidence_score || 0.9) * 100).toFixed(1)}%
           </div>
         )}
       </div>
@@ -187,12 +192,31 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
             <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">All Candidates</div>
           </div>
           <div className="space-y-3">
-            {structured.candidates.map(candidate => (
-              <div key={candidate.id} className="p-3 rounded-md bg-background border border-border text-xs flex justify-between items-center">
-                <div className="font-semibold text-foreground">{candidate.name}</div>
+            {structured.candidates.map(candidate => {
+              const isRecommended = candidate.name === structured.recommended_material
+              return (
+              <button 
+                key={candidate.id} 
+                onClick={() => {
+                  if (!isRecommended && onCandidateClick) {
+                    onCandidateClick(candidate.name)
+                  }
+                }}
+                disabled={isRecommended}
+                className={`w-full text-left p-3 rounded-md border text-xs flex justify-between items-center transition-colors ${
+                  isRecommended 
+                    ? 'bg-primary/10 border-primary/30 cursor-default' 
+                    : 'bg-background border-border hover:bg-muted/50 hover:border-border/80'
+                }`}
+                title={isRecommended ? "Current recommendation" : "Click to ask why this wasn't chosen"}
+              >
+                <div className="font-semibold text-foreground flex items-center gap-2">
+                  {candidate.name}
+                  {isRecommended && <Check size={10} className="text-primary" />}
+                </div>
                 <div className="text-muted-foreground">{candidate.category}</div>
-              </div>
-            ))}
+              </button>
+            )})}
           </div>
         </div>
       )}
@@ -234,12 +258,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return () => cancelAnimationFrame(rafId)
   }, [messages, loading, streamingContent])
 
-  // Auto-resize
+  // Auto-resize with debounce
   useEffect(() => {
+    let timeoutId: number
     const el = textareaRef.current
     if (!el) return
-    el.style.height = '0px'
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    
+    // Debounce the resize to prevent layout thrashing on every keystroke
+    const resize = () => {
+      el.style.height = '0px'
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    }
+    
+    timeoutId = window.setTimeout(resize, 10)
+    return () => clearTimeout(timeoutId)
   }, [query])
 
   const copyMessage = async (msg: ChatMessage) => {
@@ -268,17 +300,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const isDisabled = !query.trim() || loading || isSending
 
   // Determine what to show in the right pane (latest assistant structured result)
-  const latestAssistantMsg = [...messages].reverse().find(m => m.type === 'assistant')
-  const latestStructured = latestAssistantMsg?.response?.structured_result
+  const latestAssistantMsgWithStructured = [...messages].reverse().find(m => m.type === 'assistant' && m.response?.structured_result)
+  const latestStructured = latestAssistantMsgWithStructured?.response?.structured_result
   // If loading and we have NO messages yet in this session, show streaming state in right pane
   const isInitialStream = loading && messages.length <= 1
+
+  const handleCandidateClick = async (candidateName: string) => {
+    if (!latestStructured || !latestStructured.recommended_material || loading || isSending) return
+    const text = `Why was ${candidateName} not chosen over ${latestStructured.recommended_material}?`
+    setIsSending(true)
+    try {
+      await onSendMessage(text)
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   return (
     <div className="flex h-full bg-background relative overflow-hidden">
       
       {/* ── Left Pane: Conversation ───────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 relative h-full">
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 lg:px-12 pb-40 pt-8">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 lg:px-12 pb-[300px] pt-8">
           {messages.length === 0 && !loading ? (
             /* Empty state */
             <div className="flex flex-col justify-center h-full max-w-lg mx-auto opacity-90 mt-12">
@@ -346,7 +389,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     ) : (
                       <div className="prose prose-sm dark:prose-invert max-w-none font-sans font-light">
                         {/* We removed inline StructuredBlock because it renders in the right pane */}
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]} 
+                          rehypePlugins={[rehypeSanitize]}
+                          components={{ code: CodeBlock }}
+                        >
                           {msg.response?.report || ''}
                         </ReactMarkdown>
                       </div>
@@ -426,7 +473,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </span>
         </div>
         <div className="absolute top-12 bottom-0 left-0 right-0">
-           <DataSheetPane structured={latestStructured} streaming={isInitialStream} />
+           <DataSheetPane 
+             structured={latestStructured} 
+             streaming={isInitialStream} 
+             onCandidateClick={handleCandidateClick}
+           />
         </div>
       </div>
 

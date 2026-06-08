@@ -135,7 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE TABLE IF NOT EXISTS chats (
     id            BIGSERIAL PRIMARY KEY,
     -- store user identifiers as TEXT to remain compatible with existing user tables
-    user_id       TEXT,
+    user_id       BIGINT REFERENCES users(id) ON DELETE CASCADE,
     title         TEXT,
     state         JSONB,      -- e.g. routing info, last run context
     is_active     BOOLEAN DEFAULT TRUE,
@@ -149,9 +149,9 @@ CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
 CREATE TABLE IF NOT EXISTS messages (
     id            BIGSERIAL PRIMARY KEY,
     -- keep chat_id as BIGINT (no FK) so creation stays safe across DBs
-    chat_id       BIGINT,
+    chat_id       BIGINT REFERENCES chats(id) ON DELETE CASCADE,
     sender_role   TEXT NOT NULL, -- 'user' | 'assistant' | 'system'
-    sender_id     TEXT,        -- optional link to users.id when sender is a user
+    sender_id     BIGINT REFERENCES users(id) ON DELETE SET NULL,        -- optional link to users.id when sender is a user
     content       JSONB NOT NULL, -- structured payload (report, metadata, citations)
     content_text  TEXT,          -- simple text fallback for UI rendering / search
     tokens_used   INT DEFAULT 0,

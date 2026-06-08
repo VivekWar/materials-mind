@@ -176,8 +176,6 @@ export const useChat = () => {
       setLoading(true)
       setStreamingContent('')
 
-      let titleRefreshNeeded = false
-
       try {
         const assistantMessages = messagesBeforeSend.filter(
           (msg) => msg.type === 'assistant',
@@ -195,11 +193,12 @@ export const useChat = () => {
         }
 
         if (isFirstTurn) {
-          // Fire-and-forget title generation for new chats
+          // Title generation for new chats
           if (activeSession.title === 'New chat') {
-              titleRefreshNeeded = true
               generateChatTitle(sessionId, text)
-                .then(() => refreshChats())
+                .then((newTitle) => {
+                  setSessions((current) => current.map(s => s.id === sessionId ? { ...s, title: newTitle } : s))
+                })
                 .catch(console.error)
             }
 
@@ -272,8 +271,6 @@ export const useChat = () => {
       } finally {
         setLoading(false)
         setAbortController(null)
-        // Only refresh the sidebar list when a new title was generated
-        if (titleRefreshNeeded) void refreshChats()
       }
     },
     [

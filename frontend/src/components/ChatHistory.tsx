@@ -77,8 +77,8 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
     setUser(null)
   }
 
-  // Filter out empty chats and temp-new-chat from sidebar
-  const filteredSessions = sessions.filter(s => s.messages && s.messages.length > 0)
+  // Filter out temp-new-chat from sidebar
+  const filteredSessions = sessions.filter(s => s.id !== 'temp-new-chat')
   const grouped = groupSessionsByDate(filteredSessions)
 
   return (

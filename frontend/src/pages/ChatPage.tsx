@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { Circle, Menu, Plus, Sparkles, X } from 'lucide-react'
+import { Circle, Menu, Plus, Sparkles, X, LogOut } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ChatPanel } from '../components/ChatPanel'
 import { ChatHistory } from '../components/ChatHistory'
 import { useChat } from '../hooks/useChat'
 import { useAppStore } from '../store/useAppStore'
-import { getMe, pingStatus } from '../api/client'
+import { getMe, pingStatus, logout } from '../api/client'
 import AuthPage from './AuthPage'
 
 const navigateTo = (path: string) => {
@@ -48,6 +48,7 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     let mounted = true
     const check = async () => {
+      if (document.hidden) return
       const ok = await pingStatus()
       if (mounted) setApiStatus(ok ? 'online' : 'offline')
     }
@@ -64,12 +65,25 @@ const ChatPage: React.FC = () => {
     const syncViewport = () => {
       const isMobile = window.innerWidth <= 980
       setIsMobileViewport(isMobile)
-      setIsSidebarOpen(!isMobile)
+      if (isMobile) {
+        setIsSidebarOpen(false)
+      } else {
+        const stored = localStorage.getItem('isSidebarOpen')
+        setIsSidebarOpen(stored !== 'false')
+      }
     }
     syncViewport()
     window.addEventListener('resize', syncViewport)
     return () => window.removeEventListener('resize', syncViewport)
   }, [])
+
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen((v) => {
+      const next = !v
+      localStorage.setItem('isSidebarOpen', String(next))
+      return next
+    })
+  }
 
   const handleSelectSession = (id: string) => {
     selectSession(id)
@@ -79,6 +93,16 @@ const ChatPage: React.FC = () => {
   const handleCreateSession = () => {
     void createNewSession()
     if (window.innerWidth <= 980) setIsSidebarOpen(false)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      setUser(null)
+      navigateTo('/')
+    } catch (e) {
+      console.error('Failed to logout', e)
+    }
   }
 
   // ── Guards ─────────────────────────────────────────────────────────────────
@@ -127,7 +151,7 @@ const ChatPage: React.FC = () => {
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-foreground h-8 w-8"
-              onClick={() => setIsSidebarOpen((v) => !v)}
+              onClick={handleToggleSidebar}
               aria-label={isSidebarOpen ? 'Close session history' : 'Open session history'}
               aria-expanded={isSidebarOpen}
               aria-controls="chat-sidebar"
@@ -175,6 +199,17 @@ const ChatPage: React.FC = () => {
               className="gap-1.5 h-8 border-border/80"
             >
               <Plus size={12} aria-hidden="true" /> New Chat
+            </Button>
+
+            <Button
+              id="btn-logout"
+              size="sm"
+              variant="ghost"
+              onClick={handleLogout}
+              title="Sign Out"
+              className="text-muted-foreground hover:text-foreground h-8 px-2"
+            >
+              <LogOut size={14} aria-hidden="true" />
             </Button>
           </div>
         </nav>

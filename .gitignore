@@ -53,3 +53,5 @@ __pycache__/
 *.seed.gitignore
 backend/materialmind
 out.txt
+*.patch
+check_chats.go

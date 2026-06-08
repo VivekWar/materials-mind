@@ -9,7 +9,11 @@ import (
 
 func RateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetString("user_id")
 		key := "ratelimit:" + c.ClientIP()
+		if userID != "" {
+			key = "ratelimit:user:" + userID
+		}
 
 		count, err := db.RedisClient.Incr(c.Request.Context(), key).Result()
 		if err != nil {

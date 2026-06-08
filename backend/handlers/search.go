@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"unicode/utf8"
 
@@ -41,22 +40,25 @@ func (h *SearchHandler) HybridSearch(c *gin.Context) {
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Status(http.StatusOK)
 
-	recommendation, err := h.searchSvc.ProcessSearch(c.Request.Context(), req.Query, req.IndustryDomain)
+	recommendationChan, err := h.searchSvc.ProcessSearchStream(c.Request.Context(), req.Query, req.IndustryDomain)
 	if err != nil {
 		c.SSEvent("error", "An error occurred while processing your search.")
 		c.Writer.Flush()
 		return
 	}
 
-	structuredJSON, err := json.Marshal(recommendation)
-	if err != nil {
-		c.SSEvent("error", "Failed to format generated response")
+	for event := range recommendationChan {
+		switch event.Type {
+		case "structured_result":
+			c.SSEvent("structured_result", event.Data)
+		case "message":
+			c.SSEvent("message", event.Data)
+		case "error":
+			c.SSEvent("error", event.Data)
+		case "done":
+			c.SSEvent("done", "true")
+			return
+		}
 		c.Writer.Flush()
-		return
 	}
-
-	c.SSEvent("structured_result", string(structuredJSON))
-	c.SSEvent("message", recommendation.Report)
-	c.SSEvent("done", "true")
-	c.Writer.Flush()
 }

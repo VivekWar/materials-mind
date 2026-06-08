@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -53,8 +54,12 @@ func main() {
 	store.Options.SameSite = http.SameSiteLaxMode
 	gothic.Store = store
 
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		backendURL = "http://localhost:8080"
+	}
 	goth.UseProviders(
-		google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), "http://localhost:8080/api/auth/google/callback"),
+		google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), backendURL+"/api/auth/google/callback"),
 	)
 
 	// 2. Router Setup
@@ -122,7 +127,16 @@ func corsMiddleware() gin.HandlerFunc {
 			allowedOrigin = "http://localhost:5173"
 		}
 
-		if origin == allowedOrigin {
+		origins := strings.Split(allowedOrigin, ",")
+		allowed := false
+		for _, o := range origins {
+			if origin == strings.TrimSpace(o) {
+				allowed = true
+				break
+			}
+		}
+
+		if allowed {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")

@@ -12,6 +12,7 @@ import {
   Lock
 } from 'lucide-react'
 import { Button } from './ui/button'
+import { useAppStore } from '../store/useAppStore'
 
 interface HomePageProps {
   onStartChat: () => void
@@ -19,6 +20,7 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
   const [activeStep, setActiveStep] = useState(0)
+  const user = useAppStore((state) => state.user)
   const loginUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api'}/auth/google/login`
 
   // Rotate through architecture steps automatically
@@ -44,20 +46,22 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
             <a href="#architecture" className="text-xs font-mono uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors hidden sm:block">
               Architecture
             </a>
-            <a href={loginUrl} style={{ textDecoration: 'none' }}>
-              <Button
-                id="btn-nav-login"
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs font-medium rounded-md shadow-sm border-border/80"
-              >
-                Sign In
-              </Button>
-            </a>
+            {!user && (
+              <a href={loginUrl} style={{ textDecoration: 'none' }}>
+                <Button
+                  id="btn-nav-login"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs font-medium rounded-md shadow-sm border-border/80"
+                >
+                  Sign In
+                </Button>
+              </a>
+            )}
             <Button
               id="btn-nav-start"
               size="sm"
-              onClick={onStartChat}
+              onClick={user ? onStartChat : () => window.location.href = loginUrl}
               className="h-8 text-xs font-medium rounded-md"
             >
               Console <ArrowRight size={12} className="ml-1.5 opacity-70" />
@@ -76,7 +80,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted text-[10px] font-mono font-medium text-muted-foreground uppercase tracking-widest mb-6 border border-border">
                 <span className="w-1.5 h-1.5 rounded-full bg-foreground animate-pulse" />
-                System v2.4 Online
+                System Online
               </div>
 
               <h1 className="text-5xl sm:text-6xl lg:text-[72px] font-semibold tracking-tighter leading-[1.05] mb-6 text-foreground">
@@ -91,7 +95,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
                   id="btn-hero-start"
-                  onClick={onStartChat}
+                  onClick={user ? onStartChat : () => window.location.href = loginUrl}
                   className="h-12 px-6 text-sm font-medium"
                 >
                   Enter Console <ArrowRight size={14} className="ml-2" />
@@ -186,7 +190,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
                     icon: Database,
                     title: "Vector Retrieval",
                     sys: "pgvector",
-                    desc: "High-dimensional embeddings are used to query a catalog of 12,000+ proprietary material sheets."
+                    desc: "High-dimensional embeddings are used to query an extensive catalog of proprietary material sheets."
                   },
                   {
                     id: 2,
@@ -239,7 +243,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Lock size={12} />
-                  <span>AES-256 Encrypted Stream</span>
+                  <span>Secure SSE Stream</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
@@ -263,12 +267,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
               Access is currently restricted to authorized Google workspace accounts. Sign in to start your first analysis.
             </p>
             <div className="flex items-center justify-center gap-4">
-              <a href={loginUrl} style={{ textDecoration: 'none' }}>
-                <Button id="btn-cta-login" variant="outline" className="h-11 px-8 border-border/80 bg-background">
-                  Sign In with Google
-                </Button>
-              </a>
-              <Button id="btn-cta-start" onClick={onStartChat} className="h-11 px-8">
+              {!user && (
+                <a href={loginUrl} style={{ textDecoration: 'none' }}>
+                  <Button id="btn-cta-login" variant="outline" className="h-11 px-8 border-border/80 bg-background">
+                    Sign In with Google
+                  </Button>
+                </a>
+              )}
+              <Button id="btn-cta-start" onClick={user ? onStartChat : () => window.location.href = loginUrl} className="h-11 px-8">
                 Console Access
               </Button>
             </div>
@@ -285,7 +291,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
           </div>
           <div className="flex gap-4">
             <span>Status: Operational</span>
-            <span>v2.4.0</span>
+            <span>v1.0.0</span>
           </div>
         </div>
       </footer>

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -81,24 +82,26 @@ func Logout(c *gin.Context) {
 
 func upsertUser(ctx context.Context, email, name, provider, providerID string) (*authUser, error) {
 	var user authUser
+	var dbProvider string
 	err := db.Pool.QueryRow(
 		ctx,
 		`
 		INSERT INTO users (email, full_name, provider, provider_id)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (email) DO UPDATE SET
-			full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
-			provider = EXCLUDED.provider,
-			provider_id = EXCLUDED.provider_id
-		RETURNING id::text, email, COALESCE(full_name, '')
+			full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name)
+		RETURNING id::text, email, COALESCE(full_name, ''), provider
 		`,
 		email,
 		name,
 		provider,
 		providerID,
-	).Scan(&user.UserID, &user.Email, &user.Name)
+	).Scan(&user.UserID, &user.Email, &user.Name, &dbProvider)
 	if err != nil {
 		return nil, err
+	}
+	if dbProvider != provider {
+		return nil, fmt.Errorf("account exists with a different provider")
 	}
 	return &user, nil
 }
@@ -110,11 +113,11 @@ func issueSessionCookie(c *gin.Context, userID string) {
 		return
 	}
 
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("session_token", token, 3600*24, "/", "", true, true)
+	isProd := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("session_token", token, 3600*24, "/", "", isProd, true)
 }
 
 func clearSessionCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("session_token", "", -1, "/", "", true, true)
+	isProd := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("session_token", "", -1, "/", "", isProd, true)
 }

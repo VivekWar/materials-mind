@@ -55,3 +55,8 @@ type StructuredRecommendation struct {
 	Report              string              `json:"report"`
 	Candidates          []MaterialCandidate `json:"candidates,omitempty"`
 }
+
+type StreamEvent struct {
+	Type string
+	Data string
+}
