@@ -20,7 +20,7 @@ func NewSearchHandler(searchSvc services.SearchService) *SearchHandler {
 }
 
 type SearchRequest struct {
-	Query          string `json:"query" binding:"required,min=3,max=500"`
+	Query          string `json:"query" binding:"required,min=3,max=5000"`
 	IndustryDomain string `json:"industry_domain"`
 }
 

@@ -112,6 +112,37 @@ export interface RecommendResponse {
   tokens_used: number
 }
 
+export interface MaterialCandidate {
+  id: number
+  name: string
+  formula?: string
+  category: string
+  subcategory?: string
+  density?: number
+  glass_transition_temp?: number
+  heat_deflection_temp?: number
+  melting_point?: number
+  boiling_point?: number
+  thermal_conductivity?: number
+  specific_heat?: number
+  thermal_expansion?: number
+  electrical_resistivity?: number
+  yield_strength?: number
+  tensile_strength?: number
+  youngs_modulus?: number
+  hardness_vickers?: number
+  poissons_ratio?: number
+  processing_temp_min_c?: number
+  processing_temp_max_c?: number
+  crystallinity?: number
+  crystal_system?: string
+  fracture_toughness?: number
+  weibull_modulus?: number
+  interlaminar_shear_strength?: number
+  fiber_volume_fraction?: number
+  source?: string
+}
+
 export interface StructuredRecommendation {
   recommended_material: string
   why_it_matches: string[]
@@ -120,6 +151,7 @@ export interface StructuredRecommendation {
   confidence_score: number
   sources: number[]
   report: string
+  candidates?: MaterialCandidate[]
 }
 
 export interface StructuredSearchResponse {

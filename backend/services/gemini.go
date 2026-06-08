@@ -18,9 +18,9 @@ var GeminiClient *genai.Client
 
 const (
 	EmbeddingModelName    = "gemini-embedding-001"
-	GenerativeModelName   = "gemini-3-pro-preview"
+	GenerativeModelName   = "gemini-2.5-flash-lite"
 	maxEmbeddingRetries   = 3
-	maxEmbeddingInputRune = 2000
+	maxEmbeddingInputRune = 5000
 )
 
 func InitGemini() {
@@ -96,4 +96,23 @@ func normalizeEmbeddingInput(text string) string {
 
 	runes := []rune(normalized)
 	return string(runes[:maxEmbeddingInputRune])
+}
+
+func GetGenerativeModel() *genai.GenerativeModel {
+	if GeminiClient == nil {
+		return nil
+	}
+	model := GeminiClient.GenerativeModel(GenerativeModelName)
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text(`CRITICAL Directives for Preventing Hallucinations:
+
+1. YOU CANNOT ALTER REALITY: If a user requests a "lightweight" material, but the best database match has a density > 5.0 g/cm³, you MUST explicitly state: "This material fails the lightweight requirement." Do NOT claim a heavy metal has "relatively low density."
+
+2. CORROSION & GALVANIC STRICTNESS: Never assume a material is corrosion-resistant in seawater or aggressive chemicals unless the database explicitly states it. If bolting two metals together (e.g., Fasteners to a Frame), you MUST evaluate Galvanic Corrosion. If the database does not contain galvanic potential data, you MUST warn the user: "Galvanic compatibility with [Base Metal] must be verified by a metallurgist."
+
+3. DO NOT BE A 'YES MAN': If the vector database returns materials that do not perfectly fit the user's prompt, do not invent properties to make them fit. Present the best available option, but ruthlessly list exactly which constraints it fails in the "Trade-offs" section.`),
+		},
+	}
+	return model
 }

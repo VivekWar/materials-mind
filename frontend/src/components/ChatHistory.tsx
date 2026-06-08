@@ -77,7 +77,9 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
     setUser(null)
   }
 
-  const grouped = groupSessionsByDate(sessions)
+  // Filter out empty chats and temp-new-chat from sidebar
+  const filteredSessions = sessions.filter(s => s.messages && s.messages.length > 0)
+  const grouped = groupSessionsByDate(filteredSessions)
 
   return (
     <div className="flex flex-col h-full w-64 bg-background border-r border-border overflow-hidden">
@@ -105,7 +107,7 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({
 
       {/* ── Session list ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
-        {sessions.length === 0 ? (
+        {grouped.length === 0 ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center h-full px-5 py-10 text-center space-y-3 opacity-60">
             <MessageSquareText size={18} className="text-muted-foreground mb-2" />

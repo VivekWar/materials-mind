@@ -148,11 +148,13 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 		}
 	}
 
-	model := GeminiClient.GenerativeModel(GenerativeModelName)
+	model := GetGenerativeModel()
 	recommendation, recErr := s.generateStructuredRecommendation(ctx, model, normalizedQuery, industryDomain, merged)
 	if recErr != nil {
 		return nil, recErr
 	}
+
+	recommendation.Candidates = merged
 
 	s.cacheStructuredRecommendation(ctx, cacheKey, recommendation)
 	return recommendation, nil
@@ -181,7 +183,7 @@ User Query: %s`, query)
 	if GeminiClient == nil {
 		return domain.SearchIntent{}, errors.New("gemini client not initialized")
 	}
-	model := GeminiClient.GenerativeModel(GenerativeModelName)
+	model := GetGenerativeModel()
 	// Optionally set response mime type to json to ensure validity, but it's supported on specific gemini models.
 	
 	var resp *genai.GenerateContentResponse
@@ -318,7 +320,13 @@ func (s *searchService) buildStructuredRecommendationPrompt(query string, indust
 		domainContext = fmt.Sprintf("Industry Domain Context: %s\n", industryDomain)
 	}
 
-	return fmt.Sprintf(`You are a strict Principal Materials Engineer. Evaluate the provided retrieved materials against the user's prompt. You must strictly penalize materials that violate stated business constraints like 'budget', 'cheap', or 'mass production'. If a highly performant material violates the cost constraint, you must rank a cheaper, viable alternative higher. Do not recommend exotic composites for 'cheap' applications unless absolutely no metal or standard polymer meets the physical constraints.
+	return fmt.Sprintf(`You are a conservative, strictly data-grounded Principal Materials Scientist. Evaluate the provided retrieved materials against the user's prompt. You must strictly penalize materials that violate stated business constraints like 'budget', 'cheap', or 'mass production'.
+
+When evaluating materials or answering questions, apply these rules:
+1. NO STUBBORNNESS: If a valid physical property conflict exists, gracefully pivot your recommendation. Do not defend a suboptimal material.
+2. QUANTITATIVE MATH OVER QUALITATIVE TEXT: Explicitly calculate or weigh density/cost differences if financial penalties exist.
+3. AGNOSTIC TO BRANDS/LABELS: Evaluate strictly by crystal structures and engineering properties. Remember FCC metals do not have ductile-to-brittle transition temperatures (excel in cryogenics), while BCC and HCP metals are highly prone to low-temperature embrittlement.
+4. ACKNOWLEDGE LIMITATIONS: If retrieved data lacks exact alloy grades (e.g. says "Titanium" instead of "Ti-6Al-4V ELI"), state this limitation immediately rather than assuming suitability for extreme environments.
 
 User query: %q
 
@@ -335,13 +343,13 @@ Return only valid JSON (no markdown, no code fences) with this exact shape:
   "confidence": "High|Medium|Low",
   "confidence_score": 0.0,
   "sources": [12, 45],
-  "report": "short multi-line engineer explanation"
+  "report": "detailed, comprehensive multi-line engineering explanation"
 }
 
-Rules:
+Formatting & System Rules:
 - "sources" must only include IDs from retrieved materials.
 - "confidence_score" must be a number from 0.0 to 1.0.
-- "report" should be concise and reference the chosen material and key trade-offs.
+- "report" should be highly detailed and comprehensive, referencing the chosen material, physical properties, and key trade-offs in depth.
 - Do not include extra keys.`, query, domainContext, materialContext.String())
 }
 
@@ -354,7 +362,7 @@ func (s *searchService) buildStructuredRepairPrompt(rawOutput string) string {
   "confidence": "High|Medium|Low",
   "confidence_score": 0.0,
   "sources": [12, 45],
-  "report": "short multi-line engineer explanation"
+  "report": "detailed, comprehensive multi-line engineering explanation"
 }
 
 Keep all factual content intact and do not invent new source IDs.
@@ -472,7 +480,7 @@ func (s *searchService) ProcessFollowup(ctx context.Context, req domain.FollowUp
 		return cached, nil
 	}
 
-	model := GeminiClient.GenerativeModel(GenerativeModelName)
+	model := GetGenerativeModel()
 
 	var resp *genai.GenerateContentResponse
 	var err error
@@ -524,7 +532,13 @@ func (s *searchService) buildFollowUpPrompt(req domain.FollowUpChatRequest) stri
 		topRecommendations.WriteString("\n")
 	}
 
-	return fmt.Sprintf(`You are a concise materials engineering assistant.
+	return fmt.Sprintf(`You are a conservative, strictly data-grounded Principal Materials Scientist.
+
+When users challenge your recommendations or ask follow-up questions, apply these rules:
+1. NO STUBBORNNESS: If a user points out a valid physical property conflict (e.g., density differences, hydrogen embrittlement, or ductile-to-brittle transitions) and a previously retrieved material fits the business constraints better, you must gracefully pivot your recommendation. Do not defend a suboptimal material.
+2. QUANTITATIVE MATH OVER QUALITATIVE TEXT: If the user provides a financial penalty constraint (e.g., cost per gram of launch weight), you must explicitly calculate or weigh the density differences. A material that is 60%% denser must have a massive engineering justification to override a severe mass penalty.
+3. AGNOSTIC TO BRANDS/LABELS: Evaluate materials strictly by their crystal structures and engineering properties. FCC metals (Aluminum, Copper, Nickel, Austenitic Stainless) do NOT have a ductile-to-brittle transition and excel in cryogenics. BCC/HCP metals are prone to low-temperature embrittlement.
+4. ACKNOWLEDGE LIMITATIONS: If the data retrieved does not explicitly specify an exact alloy grade, you MUST state this limitation immediately to the user rather than assuming its suitability for extreme environments.
 
 Conversation history:
 %s
@@ -538,11 +552,11 @@ Top recommendations:
 User follow-up:
 %s
 
-Rules:
+System Rules:
 - Answer only the user's follow-up question.
 - Stay grounded in the report and recommendation list above.
 - Do not invent new material properties.
-- Keep the response clear, practical, and short enough for a product chat UI.`, historyBuilder.String(), strings.TrimSpace(req.InitialReport), topRecommendations.String(), strings.TrimSpace(req.Message))
+- Provide a highly detailed, comprehensive, and technical engineering response.`, historyBuilder.String(), strings.TrimSpace(req.InitialReport), topRecommendations.String(), strings.TrimSpace(req.Message))
 }
 
 func (s *searchService) getCachedFollowup(ctx context.Context, key string) (*domain.FollowUpChatResponse, bool) {
@@ -587,9 +601,20 @@ Do not include quotes or punctuation. Just the title.
 
 User Message: "%s"`, query)
 
+	fallbackTitle := func(q string) string {
+		words := strings.Fields(q)
+		if len(words) > 4 {
+			return strings.Join(words[:4], " ") + "..."
+		}
+		if len(words) > 0 {
+			return q
+		}
+		return "New chat"
+	}
+
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		return "New chat", err
+		return fallbackTitle(query), nil
 	}
 
 	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
@@ -597,11 +622,11 @@ User Message: "%s"`, query)
 		if textPart, ok := part.(genai.Text); ok {
 			title := strings.TrimSpace(string(textPart))
 			title = strings.Trim(title, "\"'")
-			if title != "" {
+			if title != "" && !strings.EqualFold(title, "new chat") && !strings.EqualFold(title, "new session") {
 				return title, nil
 			}
 		}
 	}
 
-	return "New chat", nil
+	return fallbackTitle(query), nil
 }

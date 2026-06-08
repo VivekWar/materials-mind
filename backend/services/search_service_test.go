@@ -77,6 +77,7 @@ func TestValidateRecommendation_SuccessNormalizesFields(t *testing.T) {
 
 func TestValidateRecommendation_FailsForOutOfRangeConfidenceScore(t *testing.T) {
 	s := &searchService{}
+	
 	candidates := []domain.MaterialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
 	rec := &domain.StructuredRecommendation{
 		RecommendedMaterial: "Material-A",
@@ -99,6 +100,7 @@ func TestValidateRecommendation_FailsForOutOfRangeConfidenceScore(t *testing.T) 
 
 func TestValidateRecommendation_FailsForUnknownSource(t *testing.T) {
 	s := &searchService{}
+	
 	candidates := []domain.MaterialCandidate{{ID: 10, Name: "A", Category: "X", YieldStrength: 100}}
 	rec := &domain.StructuredRecommendation{
 		RecommendedMaterial: "Material-A",

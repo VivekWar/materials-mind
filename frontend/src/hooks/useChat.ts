@@ -117,11 +117,16 @@ export const useChat = () => {
   )
 
   // ── Session management ───────────────────────────────────────────────────────
-  const createNewSession = useCallback(async () => {
+  const createNewSession = useCallback(() => {
     if (!isAuthenticated) return
-    const created = await createChat('New chat')
-    setSessions((current) => [created, ...current])
-    setActiveSessionId(created.id)
+    const tempSession: ChatSession = {
+      id: 'temp-new-chat',
+      title: 'New chat',
+      messages: [],
+      updatedAt: Date.now(),
+    }
+    setSessions((current) => [tempSession, ...current.filter(s => s.id !== 'temp-new-chat')])
+    setActiveSessionId('temp-new-chat')
   }, [isAuthenticated, setSessions, setActiveSessionId])
 
   const selectSession = useCallback(
@@ -147,8 +152,18 @@ export const useChat = () => {
       const text = query.trim()
       if (!text || loading || !activeSession) return
 
-      const sessionId = activeSession.id
-      const messagesBeforeSend = activeSession.messages
+      let sessionId = activeSession.id
+      
+      // Lazily create session on backend when first message is sent
+      if (sessionId === 'temp-new-chat') {
+        const created = await createChat('New chat')
+        sessionId = created.id
+        setSessions((current) => [created, ...current.filter(s => s.id !== 'temp-new-chat')])
+        setActiveSessionId(sessionId)
+      }
+
+      const currentActiveSession = useAppStore.getState().sessions.find(s => s.id === sessionId)
+      const messagesBeforeSend = currentActiveSession?.messages || []
 
       await persistAndMergeMessage(sessionId, {
         type: 'user',
@@ -169,65 +184,78 @@ export const useChat = () => {
         )
         const isFirstTurn = assistantMessages.length === 0
 
+        const simulateTypewriter = async (reportText: string, signal: AbortSignal) => {
+          setStreamingContent('')
+          const words = reportText.split(' ')
+          for (let i = 0; i < words.length; i++) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+            appendStreamingContent(words[i] + ' ')
+            await new Promise(resolve => setTimeout(resolve, 80))
+          }
+        }
+
         if (isFirstTurn) {
           // Fire-and-forget title generation for new chats
           if (activeSession.title === 'New chat') {
-            titleRefreshNeeded = true
-            generateChatTitle(sessionId, text)
-              .then(() => refreshChats())
-              .catch(console.error)
+              titleRefreshNeeded = true
+              generateChatTitle(sessionId, text)
+                .then(() => refreshChats())
+                .catch(console.error)
+            }
+
+            const structuredRes = await searchStructured(text, {
+              onChunk: () => {}, // Ignore actual chunks, use typewriter
+              signal: controller.signal,
+            })
+
+            await simulateTypewriter(structuredRes.report, controller.signal)
+
+            setStreamingContent('')
+
+            await persistAndMergeMessage(sessionId, {
+              type: 'assistant',
+              response: {
+                recommendations: [],
+                report: structuredRes.report,
+                structured_result: structuredRes.structured_result,
+                tokens_used: 0,
+              },
+              tokens: 0,
+            })
+          } else {
+            // Follow-up turns: context-aware
+            const history = messagesBeforeSend.slice(-10).map((msg) => ({
+              role: msg.type,
+              content:
+                msg.type === 'user'
+                  ? msg.originalQuery || msg.query || ''
+                  : msg.response?.report || '',
+            }))
+            const firstAssistant = assistantMessages[0]
+
+            const follow = await chatFollowup({
+              message: text,
+              history,
+              initial_report: firstAssistant?.response?.report || '',
+              top_recommendations: [],
+            })
+
+            await simulateTypewriter(follow.reply, controller.signal)
+
+            setStreamingContent('')
+
+            await persistAndMergeMessage(sessionId, {
+              type: 'assistant',
+              response: {
+                recommendations: [],
+                report: follow.reply,
+                tokens_used: follow.tokens_used || 0,
+              },
+              tokens: follow.tokens_used || 0,
+            })
           }
-
-          // Stream SSE chunks live into UI
-          const structuredRes = await searchStructured(text, {
-            onChunk: appendStreamingContent,
-            signal: controller.signal,
-          })
-
+        } catch (err: any) {
           setStreamingContent('')
-
-          await persistAndMergeMessage(sessionId, {
-            type: 'assistant',
-            response: {
-              recommendations: [],
-              report: structuredRes.report,
-              structured_result: structuredRes.structured_result,
-              tokens_used: 0,
-            },
-            tokens: 0,
-          })
-        } else {
-          // Follow-up turns: context-aware but not SSE-streamed
-          const history = messagesBeforeSend.slice(-10).map((msg) => ({
-            role: msg.type,
-            content:
-              msg.type === 'user'
-                ? msg.originalQuery || msg.query || ''
-                : msg.response?.report || '',
-          }))
-          const firstAssistant = assistantMessages[0]
-
-          const follow = await chatFollowup({
-            message: text,
-            history,
-            initial_report: firstAssistant?.response?.report || '',
-            top_recommendations: [],
-          })
-
-          setStreamingContent('')
-
-          await persistAndMergeMessage(sessionId, {
-            type: 'assistant',
-            response: {
-              recommendations: [],
-              report: follow.reply,
-              tokens_used: follow.tokens_used || 0,
-            },
-            tokens: follow.tokens_used || 0,
-          })
-        }
-      } catch (err: any) {
-        setStreamingContent('')
 
         // AbortError = user clicked "Stop" — don't show an error message
         if (err?.name === 'AbortError') return
