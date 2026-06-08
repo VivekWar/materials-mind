@@ -343,13 +343,13 @@ Return only valid JSON (no markdown, no code fences) with this exact shape:
   "confidence": "High|Medium|Low",
   "confidence_score": 0.0,
   "sources": [12, 45],
-  "report": "detailed, comprehensive multi-line engineering explanation"
+  "report": "detailed, comprehensive multi-paragraph engineer explanation"
 }
 
 Formatting & System Rules:
 - "sources" must only include IDs from retrieved materials.
 - "confidence_score" must be a number from 0.0 to 1.0.
-- "report" should be highly detailed and comprehensive, referencing the chosen material, physical properties, and key trade-offs in depth.
+- "report" should be highly detailed and comprehensive, referencing the chosen material and key trade-offs in depth.
 - Do not include extra keys.`, query, domainContext, materialContext.String())
 }
 
@@ -362,7 +362,7 @@ func (s *searchService) buildStructuredRepairPrompt(rawOutput string) string {
   "confidence": "High|Medium|Low",
   "confidence_score": 0.0,
   "sources": [12, 45],
-  "report": "detailed, comprehensive multi-line engineering explanation"
+  "report": "detailed, comprehensive multi-paragraph engineer explanation"
 }
 
 Keep all factual content intact and do not invent new source IDs.
@@ -556,7 +556,7 @@ System Rules:
 - Answer only the user's follow-up question.
 - Stay grounded in the report and recommendation list above.
 - Do not invent new material properties.
-- Provide a highly detailed, comprehensive, and technical engineering response.`, historyBuilder.String(), strings.TrimSpace(req.InitialReport), topRecommendations.String(), strings.TrimSpace(req.Message))
+- Provide a highly detailed, comprehensive explanation.`, historyBuilder.String(), strings.TrimSpace(req.InitialReport), topRecommendations.String(), strings.TrimSpace(req.Message))
 }
 
 func (s *searchService) getCachedFollowup(ctx context.Context, key string) (*domain.FollowUpChatResponse, bool) {

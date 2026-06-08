@@ -184,18 +184,13 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
       {structured.candidates && structured.candidates.length > 0 && (
         <div className="mt-8 border-t border-border pt-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Top Candidates</div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">All Candidates</div>
           </div>
           <div className="space-y-3">
             {structured.candidates.map(candidate => (
-              <div key={candidate.id} className="p-3 rounded-md bg-background border border-border text-xs">
-                <div className="font-semibold text-foreground mb-1">{candidate.name}</div>
-                <div className="text-muted-foreground grid grid-cols-2 gap-y-1 mt-2">
-                  {candidate.yield_strength && <div>Yield: {candidate.yield_strength} MPa</div>}
-                  {candidate.density && <div>Density: {candidate.density} g/cm³</div>}
-                  {candidate.tensile_strength && <div>Tensile: {candidate.tensile_strength} MPa</div>}
-                  {candidate.thermal_conductivity && <div>Cond: {candidate.thermal_conductivity} W/m·K</div>}
-                </div>
+              <div key={candidate.id} className="p-3 rounded-md bg-background border border-border text-xs flex justify-between items-center">
+                <div className="font-semibold text-foreground">{candidate.name}</div>
+                <div className="text-muted-foreground">{candidate.category}</div>
               </div>
             ))}
           </div>

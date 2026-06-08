@@ -52,3 +52,4 @@ __pycache__/
 *.pid.lock
 *.seed.gitignore
 backend/materialmind
+out.txt
