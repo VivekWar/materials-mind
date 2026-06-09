@@ -114,10 +114,20 @@ func issueSessionCookie(c *gin.Context, userID string) {
 	}
 
 	isProd := gin.Mode() == gin.ReleaseMode
+	if isProd {
+		c.SetSameSite(http.SameSiteNoneMode)
+	} else {
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
 	c.SetCookie("session_token", token, 3600*24, "/", "", isProd, true)
 }
 
 func clearSessionCookie(c *gin.Context) {
 	isProd := gin.Mode() == gin.ReleaseMode
+	if isProd {
+		c.SetSameSite(http.SameSiteNoneMode)
+	} else {
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
 	c.SetCookie("session_token", "", -1, "/", "", isProd, true)
 }
