@@ -36,14 +36,29 @@ export function setAuthToken(token: string | null) {
 
 function isTokenExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
+    const base64Url = token.split('.')[1]
+    if (!base64Url) return false
+    
+    // Properly decode Base64Url to Base64
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    
+    // Decode base64 to Unicode string
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    
+    const payload = JSON.parse(jsonPayload)
     if (payload.exp) {
       // exp is in seconds. Add a 5 second buffer.
       return payload.exp * 1000 < Date.now() + 5000
     }
     return false
-  } catch {
-    return true
+  } catch (err) {
+    // If decoding fails, don't force a logout. Let the backend return 401 instead.
+    return false
   }
 }
 
