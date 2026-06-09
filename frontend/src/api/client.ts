@@ -34,34 +34,6 @@ export function setAuthToken(token: string | null) {
   }
 }
 
-function isTokenExpired(token: string): boolean {
-  try {
-    const base64Url = token.split('.')[1]
-    if (!base64Url) return false
-    
-    // Properly decode Base64Url to Base64
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    
-    // Decode base64 to Unicode string
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    )
-    
-    const payload = JSON.parse(jsonPayload)
-    if (payload.exp) {
-      // exp is in seconds. Add a 5 second buffer.
-      return payload.exp * 1000 < Date.now() + 5000
-    }
-    return false
-  } catch (err) {
-    // If decoding fails, don't force a logout. Let the backend return 401 instead.
-    return false
-  }
-}
-
 // ── Axios instance ───────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
@@ -73,14 +45,6 @@ const api = axios.create({
 if (_authToken) {
   api.defaults.headers.common['Authorization'] = `Bearer ${_authToken}`
 }
-
-api.interceptors.request.use((config) => {
-  if (_authToken && isTokenExpired(_authToken)) {
-    handleUnauthorized()
-    return Promise.reject(new Error('Session expired'))
-  }
-  return config
-})
 
 api.interceptors.response.use(
   (response) => response,
@@ -100,11 +64,6 @@ function resolveBackendUrl(path: string): string {
 }
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  if (_authToken && isTokenExpired(_authToken)) {
-    handleUnauthorized()
-    throw new Error('Session expired')
-  }
-
   const headers = new Headers(options.headers || {})
   if (_authToken) {
     headers.set('Authorization', `Bearer ${_authToken}`)
