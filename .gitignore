@@ -3,6 +3,7 @@
 .env.*
 *.env
 *.env.*
+!frontend/.env.production
 
 # Virtual environments
 .venv/
