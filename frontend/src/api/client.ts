@@ -254,6 +254,10 @@ export interface AuthUser {
   user_id: string
   email: string
   name?: string
+  chats_used: number
+  max_chats: number
+  messages_used: number
+  max_messages: number
 }
 
 export interface ChatMessage {
@@ -353,7 +357,10 @@ export async function createChat(title = 'New chat'): Promise<ChatSession> {
     credentials: 'include',
     body: JSON.stringify({ title }),
   })
-  if (!res.ok) throw new Error(`create chat failed: HTTP ${res.status}`)
+  if (!res.ok) {
+    if (res.status === 403) throw new Error('LIMIT_REACHED')
+    throw new Error(`create chat failed: HTTP ${res.status}`)
+  }
   const data = (await res.json()) as { chat: ApiChat }
   return mapApiChat(data.chat)
 }
@@ -477,6 +484,7 @@ export async function chatFollowup(
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
+    if (res.status === 403) throw new Error('LIMIT_REACHED')
     const fallback = await res.text().catch(() => '')
     throw new Error(fallback || `follow-up endpoint failed: HTTP ${res.status}`)
   }
@@ -545,6 +553,7 @@ export async function searchStructured(
   })
 
   if (!res.ok || !res.body) {
+    if (res.status === 403) throw new Error('LIMIT_REACHED')
     throw new Error(`search endpoint failed: HTTP ${res.status}`)
   }
 

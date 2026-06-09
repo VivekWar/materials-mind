@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/vivekwar/materialmind/db"
 	"github.com/vivekwar/materialmind/services"
 )
 
@@ -39,6 +40,12 @@ func (h *ChatHandler) CreateChat(c *gin.Context) {
 	var req CreateChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var chatsCount int
+	if err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE", userID).Scan(&chatsCount); err == nil && chatsCount >= 10 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Daily chat limit reached (10 max)."})
 		return
 	}
 

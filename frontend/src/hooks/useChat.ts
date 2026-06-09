@@ -272,9 +272,14 @@ export const useChat = () => {
             return
           }
 
-          const errorMsg = currentContent
-            ? currentContent + '\n\n*(Connection lost before completion)*'
-            : 'I could not reach the material assistant. Please check your connection and try again.'
+          let errorMsg = ''
+          if (err?.message === 'LIMIT_REACHED') {
+            errorMsg = 'You have reached your daily usage limit. Please try again tomorrow.'
+          } else {
+            errorMsg = currentContent
+              ? currentContent + '\n\n*(Connection lost before completion)*'
+              : 'I could not reach the material assistant. Please check your connection and try again.'
+          }
 
           await persistAndMergeMessage(sessionId, {
             type: 'assistant',

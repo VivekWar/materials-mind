@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"github.com/vivekwar/materialmind/db"
 	"github.com/vivekwar/materialmind/services"
 )
 
@@ -33,6 +34,16 @@ func (h *SearchHandler) HybridSearch(c *gin.Context) {
 	if utf8.RuneCountInString(req.Query) < minSearchQueryRunes {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "query is too short"})
 		return
+	}
+
+	userID := c.GetString("user_id")
+	if userID != "" {
+		var msgCount int
+		err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE", userID).Scan(&msgCount)
+		if err == nil && msgCount >= 30 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Daily message limit reached (30 max)."})
+			return
+		}
 	}
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")

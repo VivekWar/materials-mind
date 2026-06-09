@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Circle, Menu, Plus, Sparkles, X, LogOut } from 'lucide-react'
+import { Circle, Menu, Plus, Sparkles, X, LogOut, User } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { ChatPanel } from '../components/ChatPanel'
 import { ChatHistory } from '../components/ChatHistory'
+import { ProfileDialog } from '../components/ProfileDialog'
 import { useChat } from '../hooks/useChat'
 import { useAppStore } from '../store/useAppStore'
 import { getMe, pingStatus, logout, setAuthToken } from '../api/client'
@@ -24,6 +25,7 @@ const ChatPage: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
   const {
     sessions,
@@ -211,6 +213,17 @@ const ChatPage: React.FC = () => {
             </Button>
 
             <Button
+              id="btn-profile"
+              size="sm"
+              variant="ghost"
+              onClick={() => setIsProfileOpen(true)}
+              title="User Profile & Limits"
+              className="text-muted-foreground hover:text-foreground h-8 px-2"
+            >
+              <User size={14} aria-hidden="true" />
+            </Button>
+
+            <Button
               id="btn-logout"
               size="sm"
               variant="ghost"
@@ -269,6 +282,12 @@ const ChatPage: React.FC = () => {
           tabIndex={0}
         />
       )}
+
+      {/* Modals */}
+      <ProfileDialog 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+      />
     </div>
   )
 }

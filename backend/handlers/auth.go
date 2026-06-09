@@ -14,9 +14,13 @@ import (
 )
 
 type authUser struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Name   string `json:"name,omitempty"`
+	UserID       string `json:"user_id"`
+	Email        string `json:"email"`
+	Name         string `json:"name,omitempty"`
+	ChatsUsed    int    `json:"chats_used"`
+	MaxChats     int    `json:"max_chats"`
+	MessagesUsed int    `json:"messages_used"`
+	MaxMessages  int    `json:"max_messages"`
 }
 
 func GothLogin(c *gin.Context) {
@@ -78,13 +82,23 @@ func Me(c *gin.Context) {
 	var user authUser
 	err := db.Pool.QueryRow(
 		c.Request.Context(),
-		`SELECT id::text, email, COALESCE(full_name, '') FROM users WHERE id::text = $1`,
+		`SELECT 
+			id::text, 
+			email, 
+			COALESCE(full_name, ''),
+			(SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE),
+			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE)
+		 FROM users WHERE id::text = $1`,
 		userID,
-	).Scan(&user.UserID, &user.Email, &user.Name)
+	).Scan(&user.UserID, &user.Email, &user.Name, &user.ChatsUsed, &user.MessagesUsed)
+	
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session user not found"})
 		return
 	}
+
+	user.MaxChats = 10
+	user.MaxMessages = 30
 
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
