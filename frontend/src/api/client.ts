@@ -34,6 +34,19 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    if (payload.exp) {
+      // exp is in seconds. Add a 5 second buffer.
+      return payload.exp * 1000 < Date.now() + 5000
+    }
+    return false
+  } catch {
+    return true
+  }
+}
+
 // ── Axios instance ───────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
@@ -45,6 +58,14 @@ const api = axios.create({
 if (_authToken) {
   api.defaults.headers.common['Authorization'] = `Bearer ${_authToken}`
 }
+
+api.interceptors.request.use((config) => {
+  if (_authToken && isTokenExpired(_authToken)) {
+    handleUnauthorized()
+    return Promise.reject(new Error('Session expired'))
+  }
+  return config
+})
 
 api.interceptors.response.use(
   (response) => response,
@@ -64,6 +85,11 @@ function resolveBackendUrl(path: string): string {
 }
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  if (_authToken && isTokenExpired(_authToken)) {
+    handleUnauthorized()
+    throw new Error('Session expired')
+  }
+
   const headers = new Headers(options.headers || {})
   if (_authToken) {
     headers.set('Authorization', `Bearer ${_authToken}`)

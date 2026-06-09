@@ -254,21 +254,37 @@ export const useChat = () => {
             })
           }
         } catch (err: any) {
+          const currentContent = useAppStore.getState().streamingContent
           setStreamingContent('')
 
-        // AbortError = user clicked "Stop" — don't show an error message
-        if (err?.name === 'AbortError') return
+          // AbortError = user clicked "Stop" — don't show an error message
+          if (err?.name === 'AbortError') {
+            if (currentContent) {
+              await persistAndMergeMessage(sessionId, {
+                type: 'assistant',
+                response: {
+                  recommendations: [],
+                  report: currentContent,
+                  tokens_used: 0,
+                },
+              })
+            }
+            return
+          }
 
-        await persistAndMergeMessage(sessionId, {
-          type: 'assistant',
-          response: {
-            recommendations: [],
-            report:
-              'I could not reach the material assistant. Please check your connection and try again.',
-            tokens_used: 0,
-          },
-        })
-      } finally {
+          const errorMsg = currentContent
+            ? currentContent + '\n\n*(Connection lost before completion)*'
+            : 'I could not reach the material assistant. Please check your connection and try again.'
+
+          await persistAndMergeMessage(sessionId, {
+            type: 'assistant',
+            response: {
+              recommendations: [],
+              report: errorMsg,
+              tokens_used: 0,
+            },
+          })
+        } finally {
         setLoading(false)
         setAbortController(null)
       }

@@ -12,6 +12,7 @@ import { setUnauthorizedHandler } from './api/client'
 import { useAppStore } from './store/useAppStore'
 import { HomePage } from './components/HomePage'
 import ChatPage from './pages/ChatPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './styles/index.css'
 
 const CHAT_ROUTE = '/chat'
@@ -42,11 +43,15 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  if (pathname === CHAT_ROUTE) {
-    return <ChatPage />
-  }
-
-  return <HomePage onStartChat={() => navigateTo(CHAT_ROUTE)} />
+  return (
+    <ErrorBoundary>
+      {pathname === CHAT_ROUTE ? (
+        <ChatPage />
+      ) : (
+        <HomePage onStartChat={() => navigateTo(CHAT_ROUTE)} />
+      )}
+    </ErrorBoundary>
+  )
 }
 
 export default App
