@@ -45,13 +45,27 @@ func GothCallback(c *gin.Context) {
 		return
 	}
 
-	issueSessionCookie(c, authUser.UserID)
+	token, err := utils.GenerateToken(authUser.UserID)
+	if err != nil {
+		log.Printf("Token generation error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Token generation failed"})
+		return
+	}
+
+	// Still issue cookie as a fallback
+	isProd := gin.Mode() == gin.ReleaseMode
+	if isProd {
+		c.SetSameSite(http.SameSiteNoneMode)
+	} else {
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
+	c.SetCookie("session_token", token, 3600*24, "/", "", isProd, true)
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {
 		frontendOrigin = "http://localhost:5173"
 	}
-	c.Redirect(http.StatusFound, frontendOrigin+"/chat")
+	c.Redirect(http.StatusFound, frontendOrigin+"/chat?token="+token)
 }
 
 func Me(c *gin.Context) {

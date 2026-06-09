@@ -5,7 +5,7 @@ import { ChatPanel } from '../components/ChatPanel'
 import { ChatHistory } from '../components/ChatHistory'
 import { useChat } from '../hooks/useChat'
 import { useAppStore } from '../store/useAppStore'
-import { getMe, pingStatus, logout } from '../api/client'
+import { getMe, pingStatus, logout, setAuthToken } from '../api/client'
 import AuthPage from './AuthPage'
 
 const navigateTo = (path: string) => {
@@ -38,6 +38,15 @@ const ChatPage: React.FC = () => {
 
   // ── Auth check ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (token) {
+      setAuthToken(token)
+      // Remove token from URL to keep it clean
+      const newUrl = window.location.pathname + window.location.hash
+      window.history.replaceState({}, '', newUrl)
+    }
+
     getMe()
       .then(setUser)
       .catch(() => setUser(null))

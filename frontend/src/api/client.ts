@@ -16,7 +16,22 @@ export function setUnauthorizedHandler(handler: () => void): void {
 }
 
 function handleUnauthorized() {
+  setAuthToken(null)
   _unauthorizedHandler?.()
+}
+
+// ── Auth Token Management ────────────────────────────────────────────────────
+let _authToken: string | null = localStorage.getItem('auth_token')
+
+export function setAuthToken(token: string | null) {
+  _authToken = token
+  if (token) {
+    localStorage.setItem('auth_token', token)
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  } else {
+    localStorage.removeItem('auth_token')
+    delete api.defaults.headers.common['Authorization']
+  }
 }
 
 // ── Axios instance ───────────────────────────────────────────────────────────
@@ -26,6 +41,10 @@ const api = axios.create({
   timeout: 180000,
   withCredentials: true,
 })
+
+if (_authToken) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${_authToken}`
+}
 
 api.interceptors.response.use(
   (response) => response,
@@ -45,6 +64,12 @@ function resolveBackendUrl(path: string): string {
 }
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(options.headers || {})
+  if (_authToken) {
+    headers.set('Authorization', `Bearer ${_authToken}`)
+  }
+  options.headers = headers
+
   const res = await fetch(url, options)
   if (res.status === 401) {
     handleUnauthorized()
