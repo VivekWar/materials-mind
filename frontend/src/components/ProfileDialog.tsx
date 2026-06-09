@@ -84,7 +84,7 @@ export const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose })
 
             {(chatPercentage >= 100 || messagePercentage >= 100) && (
               <p className="text-xs text-red-500 mt-2 bg-red-500/10 p-2 rounded">
-                You have reached your daily usage limit. Please try again tomorrow.
+                Message quota exhausted.
               </p>
             )}
           </div>

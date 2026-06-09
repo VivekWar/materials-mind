@@ -274,7 +274,7 @@ export const useChat = () => {
 
           let errorMsg = ''
           if (err?.message === 'LIMIT_REACHED') {
-            errorMsg = 'You have reached your daily usage limit. Please try again tomorrow.'
+            errorMsg = 'Message quota exhausted.'
           } else {
             errorMsg = currentContent
               ? currentContent + '\n\n*(Connection lost before completion)*'
