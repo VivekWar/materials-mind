@@ -60,13 +60,8 @@ export const useChat = () => {
             session.messages,
         })),
       )
-      // Only set active session if none is already selected
-      const currentActiveId = useAppStore.getState().activeSessionId
-      if (!currentActiveId) {
-        setActiveSessionId(loadedSessions[0].id)
-      }
     }
-  }, [isAuthenticated, setSessions, setActiveSessionId])
+  }, [isAuthenticated, setSessions])
 
   useEffect(() => {
     if (isAuthenticated) {
