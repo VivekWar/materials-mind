@@ -86,13 +86,14 @@ func Me(c *gin.Context) {
 			id::text, 
 			email, 
 			COALESCE(full_name, ''),
-			(SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE),
-			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE)
+			(SELECT count(*) FROM chats WHERE user_id::text = $1 AND created_at >= CURRENT_DATE),
+			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id::text = $1 AND m.created_at >= CURRENT_DATE)
 		 FROM users WHERE id::text = $1`,
 		userID,
 	).Scan(&user.UserID, &user.Email, &user.Name, &user.ChatsUsed, &user.MessagesUsed)
 	
 	if err != nil {
+		log.Printf("Error in Me query: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "session user not found"})
 		return
 	}

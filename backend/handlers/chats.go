@@ -44,7 +44,7 @@ func (h *ChatHandler) CreateChat(c *gin.Context) {
 	}
 
 	var chatsCount int
-	if err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE", userID).Scan(&chatsCount); err == nil && chatsCount >= 10 {
+	if err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM chats WHERE user_id::text = $1 AND created_at >= CURRENT_DATE", userID).Scan(&chatsCount); err == nil && chatsCount >= 10 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Daily chat limit reached (10 max)."})
 		return
 	}
