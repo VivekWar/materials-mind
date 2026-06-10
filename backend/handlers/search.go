@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -38,11 +39,14 @@ func (h *SearchHandler) HybridSearch(c *gin.Context) {
 
 	userID := c.GetString("user_id")
 	if userID != "" {
-		var msgCount int
-		err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id::text = $1 AND m.created_at >= CURRENT_DATE", userID).Scan(&msgCount)
-		if err == nil && msgCount >= 30 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Daily message limit reached (30 max)."})
-			return
+		userIDInt, err := strconv.ParseInt(userID, 10, 64)
+		if err == nil {
+			var msgCount int
+			err = db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE", userIDInt).Scan(&msgCount)
+			if err == nil && msgCount >= 30 {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Daily message limit reached (30 max)."})
+				return
+			}
 		}
 	}
 

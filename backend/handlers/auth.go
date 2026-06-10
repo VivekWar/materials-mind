@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
@@ -79,17 +80,23 @@ func Me(c *gin.Context) {
 		return
 	}
 
+	userIDInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID"})
+		return
+	}
+
 	var user authUser
-	err := db.Pool.QueryRow(
+	err = db.Pool.QueryRow(
 		c.Request.Context(),
 		`SELECT 
 			id::text, 
 			email, 
 			COALESCE(full_name, ''),
-			(SELECT count(*) FROM chats WHERE user_id::text = $1 AND created_at >= CURRENT_DATE),
-			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id::text = $1 AND m.created_at >= CURRENT_DATE)
-		 FROM users WHERE id::text = $1`,
-		userID,
+			(SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE),
+			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE)
+		 FROM users WHERE id = $1`,
+		userIDInt,
 	).Scan(&user.UserID, &user.Email, &user.Name, &user.ChatsUsed, &user.MessagesUsed)
 	
 	if err != nil {
