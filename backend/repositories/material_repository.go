@@ -25,11 +25,18 @@ func NewMaterialRepository(pool *pgxpool.Pool) MaterialRepository {
 
 const selectAllCols = `
 	SELECT id, name, COALESCE(formula, ''), COALESCE(category, ''), COALESCE(subcategory, ''), 
-	       COALESCE(density, 0), COALESCE(glass_transition_temp, 0), COALESCE(heat_deflection_temp, 0), COALESCE(melting_point, 0), COALESCE(boiling_point, 0), 
-	       COALESCE(thermal_conductivity, 0), COALESCE(specific_heat, 0), COALESCE(thermal_expansion, 0), COALESCE(electrical_resistivity, 0), 
-	       COALESCE(yield_strength, 0), COALESCE(tensile_strength, 0), COALESCE(youngs_modulus, 0), COALESCE(hardness_vickers, 0), COALESCE(poissons_ratio, 0), 
-	       COALESCE(processing_temp_min_c, 0), COALESCE(processing_temp_max_c, 0), COALESCE(crystallinity, 0), COALESCE(crystal_system, ''), 
-	       COALESCE(fracture_toughness, 0), COALESCE(weibull_modulus, 0), COALESCE(interlaminar_shear_strength, 0), COALESCE(fiber_volume_fraction, 0), COALESCE(source, '')
+	       COALESCE((specific_properties->>'density')::float, 0), COALESCE((specific_properties->>'glass_transition_temp')::float, 0), 
+	       COALESCE((specific_properties->>'heat_deflection_temp')::float, 0), COALESCE((specific_properties->>'melting_point')::float, 0), 
+	       COALESCE((specific_properties->>'boiling_point')::float, 0), COALESCE((specific_properties->>'thermal_conductivity')::float, 0), 
+	       COALESCE((specific_properties->>'specific_heat')::float, 0), COALESCE((specific_properties->>'thermal_expansion')::float, 0), 
+	       COALESCE((specific_properties->>'electrical_resistivity')::float, 0), COALESCE((specific_properties->>'yield_strength')::float, 0), 
+	       COALESCE((specific_properties->>'tensile_strength')::float, 0), COALESCE((specific_properties->>'youngs_modulus')::float, 0), 
+	       COALESCE((specific_properties->>'hardness_vickers')::float, 0), COALESCE((specific_properties->>'poissons_ratio')::float, 0), 
+	       COALESCE((specific_properties->>'processing_temp_min_c')::float, 0), COALESCE((specific_properties->>'processing_temp_max_c')::float, 0), 
+	       COALESCE((specific_properties->>'crystallinity')::float, 0), COALESCE((specific_properties->>'crystal_system')::text, ''), 
+	       COALESCE((specific_properties->>'fracture_toughness')::float, 0), COALESCE((specific_properties->>'weibull_modulus')::float, 0), 
+	       COALESCE((specific_properties->>'interlaminar_shear_strength')::float, 0), COALESCE((specific_properties->>'fiber_volume_fraction')::float, 0), 
+	       COALESCE(source, '')
 `
 
 func scanMaterialCandidate(scanFn func(dest ...any) error) (domain.MaterialCandidate, error) {
@@ -47,16 +54,22 @@ func scanMaterialCandidate(scanFn func(dest ...any) error) (domain.MaterialCandi
 
 func (r *materialRepository) SearchByVector(ctx context.Context, embedding []float32, limit int, categoryFilter string) ([]domain.MaterialCandidate, error) {
 	sqlQuery := `
-		SELECT m.id, m.name, COALESCE(m.formula, ''), COALESCE(m.category, ''), COALESCE(m.subcategory, ''), 
-		       COALESCE(m.density, 0), COALESCE(m.glass_transition_temp, 0), COALESCE(m.heat_deflection_temp, 0), COALESCE(m.melting_point, 0), COALESCE(m.boiling_point, 0), 
-		       COALESCE(m.thermal_conductivity, 0), COALESCE(m.specific_heat, 0), COALESCE(m.thermal_expansion, 0), COALESCE(m.electrical_resistivity, 0), 
-		       COALESCE(m.yield_strength, 0), COALESCE(m.tensile_strength, 0), COALESCE(m.youngs_modulus, 0), COALESCE(m.hardness_vickers, 0), COALESCE(m.poissons_ratio, 0), 
-		       COALESCE(m.processing_temp_min_c, 0), COALESCE(m.processing_temp_max_c, 0), COALESCE(m.crystallinity, 0), COALESCE(m.crystal_system, ''), 
-		       COALESCE(m.fracture_toughness, 0), COALESCE(m.weibull_modulus, 0), COALESCE(m.interlaminar_shear_strength, 0), COALESCE(m.fiber_volume_fraction, 0), COALESCE(m.source, '')
-		FROM materials m
-		JOIN material_embeddings me ON m.id = me.material_id
-		WHERE ($3 = '' OR m.category ILIKE $3)
-		ORDER BY me.embedding <=> $1
+		SELECT id, name, COALESCE(formula, ''), COALESCE(category, ''), COALESCE(subcategory, ''), 
+	       COALESCE((specific_properties->>'density')::float, 0), COALESCE((specific_properties->>'glass_transition_temp')::float, 0), 
+	       COALESCE((specific_properties->>'heat_deflection_temp')::float, 0), COALESCE((specific_properties->>'melting_point')::float, 0), 
+	       COALESCE((specific_properties->>'boiling_point')::float, 0), COALESCE((specific_properties->>'thermal_conductivity')::float, 0), 
+	       COALESCE((specific_properties->>'specific_heat')::float, 0), COALESCE((specific_properties->>'thermal_expansion')::float, 0), 
+	       COALESCE((specific_properties->>'electrical_resistivity')::float, 0), COALESCE((specific_properties->>'yield_strength')::float, 0), 
+	       COALESCE((specific_properties->>'tensile_strength')::float, 0), COALESCE((specific_properties->>'youngs_modulus')::float, 0), 
+	       COALESCE((specific_properties->>'hardness_vickers')::float, 0), COALESCE((specific_properties->>'poissons_ratio')::float, 0), 
+	       COALESCE((specific_properties->>'processing_temp_min_c')::float, 0), COALESCE((specific_properties->>'processing_temp_max_c')::float, 0), 
+	       COALESCE((specific_properties->>'crystallinity')::float, 0), COALESCE((specific_properties->>'crystal_system')::text, ''), 
+	       COALESCE((specific_properties->>'fracture_toughness')::float, 0), COALESCE((specific_properties->>'weibull_modulus')::float, 0), 
+	       COALESCE((specific_properties->>'interlaminar_shear_strength')::float, 0), COALESCE((specific_properties->>'fiber_volume_fraction')::float, 0), 
+	       COALESCE(source, '')
+		FROM materials
+		WHERE ($3 = '' OR category ILIKE $3)
+		ORDER BY embedding <=> $1
 		LIMIT $2;
 	`
 	vectorStr, err := json.Marshal(embedding)
@@ -92,12 +105,12 @@ func (r *materialRepository) SearchByIntent(ctx context.Context, intent domain.S
 
 	if intent.MinYieldStrength != nil {
 		args = append(args, *intent.MinYieldStrength)
-		clauses = append(clauses, fmt.Sprintf("yield_strength >= $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("(specific_properties->>'yield_strength')::float >= $%d", len(args)))
 	}
 
 	if intent.MaxDensity != nil {
 		args = append(args, *intent.MaxDensity)
-		clauses = append(clauses, fmt.Sprintf("density <= $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("(specific_properties->>'density')::float <= $%d", len(args)))
 	}
 
 	if intent.MinOperatingTemperature != nil {
@@ -108,8 +121,8 @@ func (r *materialRepository) SearchByIntent(ctx context.Context, intent domain.S
 		argIdx2 := len(args)
 		
 		clauses = append(clauses, fmt.Sprintf(`(
-			(glass_transition_temp >= $%d) OR 
-			(glass_transition_temp IS NULL AND melting_point >= $%d)
+			((specific_properties->>'glass_transition_temp')::float >= $%d) OR 
+			((specific_properties->>'glass_transition_temp') IS NULL AND (specific_properties->>'melting_point')::float >= $%d)
 		)`, argIdx1, argIdx2))
 	}
 
@@ -119,8 +132,8 @@ func (r *materialRepository) SearchByIntent(ctx context.Context, intent domain.S
 		FROM materials
 		WHERE %s
 		ORDER BY
-			CASE WHEN yield_strength IS NULL THEN 1 ELSE 0 END,
-			yield_strength DESC NULLS LAST,
+			CASE WHEN (specific_properties->>'yield_strength') IS NULL THEN 1 ELSE 0 END,
+			(specific_properties->>'yield_strength')::float DESC NULLS LAST,
 			name ASC
 		LIMIT $%d;
 	`, selectAllCols, strings.Join(clauses, " AND "), len(args))

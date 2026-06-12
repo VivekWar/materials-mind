@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import pandas as pd
+import json
 import psycopg2
 from psycopg2.extras import execute_values
 from google import genai
@@ -30,71 +30,21 @@ if not GEMINI_API_KEY or not DATABASE_URL:
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ==========================================
-# 2. Schema Definitions
-# ==========================================
-TARGET_COLUMNS = [
-    "category", "subcategory", "formula", "density", "melting_point", 
-    "boiling_point", "thermal_conductivity", "specific_heat", "thermal_expansion", 
-    "electrical_resistivity", "yield_strength", "tensile_strength", "youngs_modulus", 
-    "hardness_vickers", "poissons_ratio", "glass_transition_temp", 
-    "heat_deflection_temp", "processing_temp_min_c", "processing_temp_max_c", 
-    "crystallinity", "fracture_toughness", "weibull_modulus", 
-    "interlaminar_shear_strength", "fiber_volume_fraction", "notes"
-]
-
-UNITS = {
-    "density": "g/cm3", "yield_strength": "MPa", "tensile_strength": "MPa",
-    "youngs_modulus": "GPa", "melting_point": "°C", "glass_transition_temp": "°C",
-    "heat_deflection_temp": "°C", "thermal_conductivity": "W/m·K"
-}
-
-# ==========================================
-# 3. Helper Functions
-# ==========================================
-def safe_val(val):
-    """Converts NaN to None so Postgres safely inserts NULL."""
-    if pd.isna(val):
-        return None
-    return val
-
-def build_embedding_text(row):
-    """Builds a semantic string for the AI."""
-    text_parts = [f"Material Name: {row.get('name', 'Unknown')}."]
-    for col in TARGET_COLUMNS:
-        if col in row and row[col] is not None:  
-            clean_col_name = col.replace("_", " ").title()
-            unit = UNITS.get(col, "")
-            text_parts.append(f"{clean_col_name}: {row[col]} {unit}".strip() + ".")
-    return " ".join(text_parts)
-
-# ==========================================
-# 4. Main ETL Pipeline
+# 2. Main ETL Pipeline
 # ==========================================
 def main():
     print("🚀 Connecting to PostgreSQL...")
     conn = psycopg2.connect(DATABASE_URL)
     
-    print("📊 Loading and Merging CSV Data...")
-    # Using the exact prepared file as requested
-    df_main = pd.read_csv("materials_prepared_for_embedding.csv")
-    
-    df_metals = pd.DataFrame()
-    if Path("Data.csv").exists():
-        df_raw = pd.read_csv("Data.csv")
-        df_metals['name'] = df_raw[['Std', 'Material', 'Heat treatment']].fillna('').agg(' '.join, axis=1)
-        df_metals['category'] = 'Alloys'
-        df_metals['yield_strength'] = df_raw['Sy'].astype(str).str.replace(' max', '').astype(float)
-        df_metals['tensile_strength'] = df_raw['Su'].astype(float)
-        df_metals['youngs_modulus'] = df_raw['E'].astype(float) / 1000 
-        df_metals['density'] = df_raw['Ro'].astype(float) / 1000
-        df_metals['poissons_ratio'] = df_raw['mu'].astype(float)
-    
-    df = pd.concat([df_main, df_metals], ignore_index=True)
-    
-    for col in df.columns:
-        df[col] = df[col].apply(safe_val)
+    print("📊 Loading JSON Data...")
+    json_path = Path("material_embeddings_data.json")
+    if not json_path.exists():
+        # Fallback to look inside data dir if executed from root
+        json_path = Path("data/material_embeddings_data.json")
+        
+    with open(json_path, 'r', encoding='utf-8') as f:
+        records = json.load(f)
 
-    records = df.to_dict(orient='records')
     print(f"⚙️ Starting ETL Pipeline for {len(records)} materials...")
 
     BATCH_SIZE = 100 
@@ -103,43 +53,24 @@ def main():
         for i in tqdm(range(0, len(records), BATCH_SIZE), desc="Processing Batches"):
             batch = records[i:i + BATCH_SIZE]
             
-            # --- EXTRACT & LOAD METADATA ---
-            for row in batch:
-                name = str(row.get('name', 'Unknown')).strip()
-                cursor.execute("SELECT id FROM materials WHERE name = %s", (name,))
-                result = cursor.fetchone()
-                
-                if result:
-                    row['material_id'] = result[0]
-                else:
-                    cols_to_insert = ["name"]
-                    vals_to_insert = [name]
-                    for col in TARGET_COLUMNS:
-                        if col in row and row[col] is not None:
-                            cols_to_insert.append(col)
-                            vals_to_insert.append(row[col])
-                    
-                    placeholders = ", ".join(["%s"] * len(vals_to_insert))
-                    col_names = ", ".join(cols_to_insert)
-                    
-                    insert_sql = f"INSERT INTO materials ({col_names}) VALUES ({placeholders}) RETURNING id;"
-                    cursor.execute(insert_sql, tuple(vals_to_insert))
-                    row['material_id'] = cursor.fetchone()[0]
-
-            # --- FILTER OUT EXISTING EMBEDDINGS ---
-            batch_ids = tuple([row['material_id'] for row in batch])
-            cursor.execute("SELECT material_id FROM material_embeddings WHERE material_id IN %s", (batch_ids,))
-            existing_ids = {row[0] for row in cursor.fetchall()}
+            # --- FILTER OUT EXISTING RECORDS ---
+            # Check which names already exist in the database
+            batch_names = tuple([str(row.get('name', '')).strip() for row in batch])
+            cursor.execute("SELECT name FROM materials WHERE name IN %s", (batch_names,))
+            existing_names = {row[0] for row in cursor.fetchall()}
             
-            records_to_embed = [r for r in batch if r['material_id'] not in existing_ids]
+            records_to_process = [r for r in batch if str(r.get('name', '')).strip() not in existing_names]
             
-            if not records_to_embed:
-                # If all records in this batch already have embeddings, skip to the next batch immediately
+            if not records_to_process:
+                # If all records in this batch already exist, skip to the next batch immediately
                 conn.commit()
                 continue 
 
             # --- GENERATE EMBEDDINGS (Batched via API) ---
-            texts_to_embed = [build_embedding_text(row) for row in records_to_embed]
+            texts_to_embed = []
+            for item in records_to_process:
+                embedding_text = f"Material: {item.get('name', 'Unknown')}. Category: {item.get('Category', 'Unknown')} - {item.get('subcategory', 'Unknown')}. Applications: {item.get('usage_information', 'None')}"
+                texts_to_embed.append(embedding_text)
             
             try:
                 # Fire all texts at once (Uses exactly your 100 RPM limit)
@@ -156,22 +87,38 @@ def main():
                 conn.close()
                 sys.exit(1)
 
-            # --- LOAD EMBEDDINGS INTO DB (Bulk Insert) ---
-            insert_data = [
-                (records_to_embed[idx]['material_id'], str(emb)) 
-                for idx, emb in enumerate(batch_embeddings)
-            ]
+            # --- LOAD INTO DB (Bulk Insert) ---
+            insert_data = []
+            for idx, item in enumerate(records_to_process):
+                name = str(item.get('name', 'Unknown')).strip()
+                formula = item.get('formula')
+                category = item.get('Category')
+                subcategory = item.get('subcategory')
+                notes = item.get('usage_information')
+                
+                all_props = item.get('all_properties', {})
+                specific_properties = json.dumps(all_props)
+                
+                embedding_vector = str(batch_embeddings[idx])
+                
+                insert_data.append((
+                    name, formula, category, subcategory, specific_properties, notes, embedding_vector
+                ))
             
             execute_values(
                 cursor,
-                "INSERT INTO material_embeddings (material_id, embedding) VALUES %s",
+                """
+                INSERT INTO materials (
+                    name, formula, category, subcategory, specific_properties, notes, embedding
+                ) VALUES %s
+                """,
                 insert_data
             )
 
             conn.commit()
             
             # --- THE MAGIC FIX: WAIT FOR QUOTA RESET ---
-            print(f"\n✅ Inserted {len(records_to_embed)} vectors. Sleeping for 60 seconds to reset API minute limits...")
+            print(f"\n✅ Inserted {len(records_to_process)} vectors. Sleeping for 60 seconds to reset API minute limits...")
             time.sleep(60)
 
     conn.close()
