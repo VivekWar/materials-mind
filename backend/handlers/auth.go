@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
@@ -66,7 +67,7 @@ func GothCallback(c *gin.Context) {
 	}
 	c.SetCookie("session_token", token, 3600*24, "/", "", isProd, true)
 
-	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
+	frontendOrigin := strings.TrimRight(os.Getenv("FRONTEND_ORIGIN"), "/")
 	if frontendOrigin == "" {
 		frontendOrigin = "http://localhost:5173"
 	}
