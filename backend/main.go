@@ -148,18 +148,13 @@ func loadEnvFile() error {
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		allowedOrigin := os.Getenv("FRONTEND_ORIGIN")
-		if allowedOrigin == "" {
-			allowedOrigin = "http://localhost:5173"
-		}
-
-		origins := strings.Split(allowedOrigin, ",")
+		
 		allowed := false
-		for _, o := range origins {
-			if origin == strings.TrimSpace(o) {
-				allowed = true
-				break
-			}
+		// Allow configured origin, any localhost, or any cloudflare pages preview/prod deployment
+		if origin == os.Getenv("FRONTEND_ORIGIN") || 
+		   strings.HasPrefix(origin, "http://localhost:") || 
+		   strings.HasSuffix(origin, ".pages.dev") {
+			allowed = true
 		}
 
 		if allowed {
