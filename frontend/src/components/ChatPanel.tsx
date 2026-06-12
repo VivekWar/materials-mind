@@ -298,9 +298,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     const text = query.trim()
     if (!text || loading || isSending) return
     setIsSending(true)
+    setQuery('') // Clear input box immediately
     try {
       await onSendMessage(text)
-      setQuery('')
       requestAnimationFrame(() => textareaRef.current?.focus())
     } finally {
       setIsSending(false)
