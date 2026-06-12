@@ -288,6 +288,7 @@ export async function logout(): Promise<void> {
     method: 'POST',
     credentials: 'include',
   })
+  setAuthToken(null)
 }
 
 // ── Chat CRUD ─────────────────────────────────────────────────────────────────

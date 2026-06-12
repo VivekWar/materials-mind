@@ -65,9 +65,10 @@ func main() {
 	if backendURL == "" {
 		backendURL = "http://localhost:8080"
 	}
-	goth.UseProviders(
-		google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), backendURL+"/api/auth/google/callback"),
-	)
+	googleProvider := google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), backendURL+"/api/auth/google/callback")
+	googleProvider.SetPrompt("select_account")
+
+	goth.UseProviders(googleProvider)
 
 	// 2. Router Setup
 	r := gin.Default()
