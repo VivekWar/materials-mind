@@ -37,6 +37,7 @@ export const useChat = () => {
   const setLoading = useAppStore((state) => state.setLoading)
   const setStreamingContent = useAppStore((state) => state.setStreamingContent)
   const appendStreamingContent = useAppStore((state) => state.appendStreamingContent)
+  const setStreamingSessionId = useAppStore((state) => state.setStreamingSessionId)
   const abortController = useAppStore((state) => state.abortController)
   const setAbortController = useAppStore((state) => state.setAbortController)
 
@@ -139,7 +140,8 @@ export const useChat = () => {
     }
     setLoading(false)
     setStreamingContent('')
-  }, [abortController, setAbortController, setLoading, setStreamingContent])
+    setStreamingSessionId(null)
+  }, [abortController, setAbortController, setLoading, setStreamingContent, setStreamingSessionId])
 
   // ── Send message ─────────────────────────────────────────────────────────────
   const sendMessage = useCallback(
@@ -169,6 +171,7 @@ export const useChat = () => {
       const controller = new AbortController()
       setAbortController(controller)
       setLoading(true)
+      setStreamingSessionId(sessionId)
       setStreamingContent('')
 
       try {
@@ -204,8 +207,6 @@ export const useChat = () => {
 
             await simulateTypewriter(structuredRes.report, controller.signal)
 
-            setStreamingContent('')
-
             await persistAndMergeMessage(sessionId, {
               type: 'assistant',
               response: {
@@ -216,6 +217,7 @@ export const useChat = () => {
               },
               tokens: 0,
             })
+            setStreamingContent('')
           } else {
             // Follow-up turns: context-aware
             const history = messagesBeforeSend.slice(-10).map((msg) => ({
@@ -236,8 +238,6 @@ export const useChat = () => {
 
             await simulateTypewriter(follow.reply, controller.signal)
 
-            setStreamingContent('')
-
             await persistAndMergeMessage(sessionId, {
               type: 'assistant',
               response: {
@@ -247,6 +247,7 @@ export const useChat = () => {
               },
               tokens: follow.tokens_used || 0,
             })
+            setStreamingContent('')
           }
         } catch (err: any) {
           const currentContent = useAppStore.getState().streamingContent

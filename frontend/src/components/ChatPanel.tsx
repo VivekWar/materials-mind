@@ -257,6 +257,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const streamingContent = useAppStore((state) => state.streamingContent)
+  const streamingSessionId = useAppStore((state) => state.streamingSessionId)
+  const activeSessionId = useAppStore((state) => state.activeSessionId)
 
   // Auto-scroll
   useEffect(() => {
@@ -412,7 +414,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
               ))}
 
-              {loading && <AssistantLoadingSkeleton streamingContent={streamingContent} />}
+              {loading && activeSessionId === streamingSessionId && <AssistantLoadingSkeleton streamingContent={streamingContent} />}
             </div>
           )}
           <div ref={messagesEndRef} className="h-4" aria-hidden="true" />

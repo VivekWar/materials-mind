@@ -22,6 +22,9 @@ interface AppState {
   setStreamingContent: (text: string) => void
   appendStreamingContent: (chunk: string) => void
 
+  streamingSessionId: string | null
+  setStreamingSessionId: (id: string | null) => void
+
   // ── API health ───────────────────────────────────────────────────────────────
   apiStatus: 'checking' | 'online' | 'offline'
   setApiStatus: (status: 'checking' | 'online' | 'offline') => void
@@ -59,6 +62,9 @@ export const useAppStore = create<AppState>((set) => ({
   setStreamingContent: (streamingContent) => set({ streamingContent }),
   appendStreamingContent: (chunk) =>
     set((state) => ({ streamingContent: state.streamingContent + chunk })),
+
+  streamingSessionId: null,
+  setStreamingSessionId: (id) => set({ streamingSessionId: id }),
 
   // API health
   apiStatus: 'checking',
