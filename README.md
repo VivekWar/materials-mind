@@ -1,175 +1,192 @@
 # Materials Mind
 
 ## Overview
-Materials Mind is an elite technical intelligence console for hardware engineering. It translates complex physical constraints into deterministic, physics-grounded material recommendations backed by structured data. Designed as an AI-powered "Materials Scientist in the Loop," the platform accelerates the material selection process for aerospace, automotive, and advanced manufacturing workflows.
+Materials Mind is a technical intelligence console designed to translate complex engineering constraints into deterministic, physics-grounded material recommendations. It acts as an AI-powered materials scientist, leveraging a hybrid Retrieval-Augmented Generation (RAG) architecture to query an extensive database of material properties and provide actionable insights for hardware and mechanical engineering applications.
 
 ## Problem Statement
-Hardware engineers must navigate intricate trade-offs—such as thermal limits, tensile strength, weight, and budget constraints—when selecting materials. Traditional catalogs rely on rigid, keyword-based search and manual cross-referencing. While Large Language Models (LLMs) offer natural language interaction, they are prone to dangerous hallucinations in mission-critical engineering contexts. 
-
-Materials Mind solves this by employing a **Zero Hallucination Architecture**. It extracts physical constraints from natural language, verifies them against a strict, deterministic database using hybrid search, and then grounds the LLM synthesis exclusively in the verified data.
+Selecting the optimal material for a specific engineering application (e.g., aerospace, automotive, high-temperature manufacturing) traditionally requires manual cross-referencing across disconnected datasheets, supplier catalogs, and academic papers. Engineers must balance multiple constraints (yield strength, thermal conductivity, density, cost) simultaneously. Materials Mind automates this process by combining the reasoning capabilities of Large Language Models (LLMs) with deterministically indexed vector data, ensuring that material recommendations are not hallucinated but are explicitly grounded in accurate, real-world data.
 
 ## Key Features
-- **Hybrid RAG Inference Engine**: Seamlessly combines high-dimensional vector search with strict SQL-based parametric filtering.
-- **Deterministic Physics Validation**: Candidates failing extracted physical boundaries (e.g., *Yield Strength > 400MPa*) are systematically pruned before reaching the LLM context window.
-- **Real-Time Streaming Synthesis**: Utilizes Server-Sent Events (SSE) to stream detailed, structured engineering reports with sub-second latency.
-- **Persistent Conversational Context**: Users can iterate on constraints or challenge trade-offs within isolated chat sessions.
-- **Enterprise-Grade Authentication**: OAuth2 integration with secure session management.
+* **Hybrid RAG Semantic Search:** Combines pgvector similarity matching with strict SQL constraint filtering (e.g., enforcing `yield_strength >= X` or `max_density <= Y`).
+* **Engineering Intelligence Chat:** Persistent chat workspaces that maintain context for complex, multi-turn material engineering discussions.
+* **Deterministic Property Serialization:** Complete exposure of 28+ physical, thermal, and electrical material properties directly to the UI, handling missing values and zero states explicitly without `omitempty` issues.
+* **Popup OAuth Flow:** A frictionless, cross-domain authentication mechanism using `window.postMessage`, avoiding the pitfalls of third-party cookie blocking and messy URL tokens.
+* **Interactive Chat Console:** A high-fidelity, Titanium/Geist-themed UI built for professional engineering standards.
 
 ## Architecture Overview
-
-The system utilizes a modern, decoupled client-server architecture:
-1. **Frontend**: A highly responsive React/TypeScript Single Page Application (SPA) utilizing Zustand for state management and TailwindCSS for a premium, Carbon-inspired technical UI.
-2. **Backend API**: A highly concurrent Go/Gin server handling request orchestration, streaming, and business logic.
-3. **Data Layer**: PostgreSQL with `pgvector` for hybrid storage, fronted by PgBouncer for connection pooling, and Redis for aggressive response caching and rate limiting.
-
-## System Design
+Materials Mind operates on a decoupled client-server architecture. The frontend is a React Single Page Application (SPA) communicating via a RESTful API to a Golang backend. The backend acts as the orchestrator, integrating with a PostgreSQL vector database for hybrid queries, Redis for caching, and Google Gemini for LLM reasoning.
 
 ```mermaid
 graph TD
-    Client[React SPA] -->|HTTPS / SSE| API[Go/Gin Backend]
-    
-    subgraph "Inference Pipeline"
-        API --> |1. NLP Parsing| Intent[Intent Extraction]
-        Intent --> |2. Vector Emb| Embedding[Text Embedding API]
-        Embedding --> |3. Vector Search| PG[(PostgreSQL + pgvector)]
-        Intent --> |4. Hard Constraints| PG
-        PG --> |5. Verified Candidates| LLM[Gemini LLM]
-        LLM --> |6. Structured Synthesis| API
-    end
-    
-    API --> |Cache/Rate Limit| Redis[(Redis)]
+    Client[Browser Client - CF Pages]
+    Backend[Go Backend - HF Space]
+    Neon[(Neon PostgreSQL + pgvector)]
+    Redis[(Upstash Redis)]
+    Gemini[Google Gemini API]
+    OAuth[Google OAuth]
+
+    Client -- REST API / Bearer Token --> Backend
+    Client -- Popup Login --> OAuth
+    OAuth -- OAuth Callback --> Backend
+    Backend -- Vector/SQL Query --> Neon
+    Backend -- Context Caching --> Redis
+    Backend -- Augmented Prompts --> Gemini
 ```
 
-### Core Workflows
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend
-    participant GoAPI
-    participant Postgres
-    participant LLM
-
-    User->>Frontend: Enter query (e.g., "High-temp polymer")
-    Frontend->>GoAPI: POST /api/search
-    GoAPI->>LLM: Extract Search Intent (JSON)
-    LLM-->>GoAPI: { min_temp: 130, domain: "aerospace" }
-    
-    par Vector Path
-        GoAPI->>Postgres: Search by pgvector similarity
-    and Keyword Path
-        GoAPI->>Postgres: SELECT WHERE melting_point >= 130
-    end
-    
-    Postgres-->>GoAPI: Validated Candidates
-    GoAPI->>LLM: Generate Structured Report (Grounding Data)
-    LLM-->>GoAPI: Stream Text & JSON
-    GoAPI-->>Frontend: SSE Stream (Chunks)
-    Frontend-->>User: Render Markdown & Data Sheet
-```
+## System Design
+The system is built around a Hybrid RAG pipeline. When an engineer submits a query:
+1. **Intent Extraction:** The query is parsed to identify hard constraints (e.g., "high temperature", "density < 5").
+2. **Retrieval:** The backend queries Neon PostgreSQL using both `pgvector` similarity (`ORDER BY embedding <=> $1`) and SQL `WHERE` clauses for hard boundaries.
+3. **Augmentation:** The retrieved `MaterialCandidate` records are serialized into a highly structured JSON context.
+4. **Generation:** Google Gemini synthesizes an engineering rationale explicitly citing the provided data, returning both a natural language summary and structured JSON (risk flags, confidence, key findings).
 
 ## Technology Stack
-
-- **Frontend**: React 18, TypeScript, Vite, TailwindCSS, Zustand, Lucide React, React Markdown.
-- **Backend**: Go 1.22, Gin Web Framework, Goth (OAuth2), Gorilla Sessions.
-- **Database**: PostgreSQL 16, pgvector extension, PgBouncer.
-- **Caching & KV**: Redis Stack.
-- **AI / LLM**: Google Gemini (gemini-2.5-flash) via `generative-ai-go`.
-- **Infrastructure**: Docker, Docker Compose, NGINX.
+* **Frontend:** React 18, Vite, TypeScript, Zustand (State), Tailwind CSS, Lucide Icons.
+* **Backend:** Golang 1.22+, Gin (HTTP Framework), pgx/v5 (PostgreSQL Driver), Goth (OAuth).
+* **Database:** Neon Serverless PostgreSQL with `pgvector` extension.
+* **Cache/Rate Limiting:** Upstash Redis.
+* **AI Provider:** Google Gemini API (`gemini-1.5-flash`).
+* **Deployment:** Cloudflare Pages (Frontend), Hugging Face Spaces / Docker (Backend), GitHub Actions (CI/CD).
 
 ## Folder Structure
-
 ```text
-Materials_Mind/
-├── backend/
-│   ├── domain/         # Core business models and structs
-│   ├── handlers/       # HTTP controllers (API endpoints)
-│   ├── middleware/     # Auth, Rate Limiting, CORS
-│   ├── repositories/   # Postgres/pgx data access layer
-│   ├── services/       # Core business logic and LLM orchestration
-│   ├── utils/          # JWT, environment helpers
-│   └── main.go         # Application entry point
-├── frontend/
+/
+├── backend/                  # Golang API Server
+│   ├── db/                   # Database & Redis initialization
+│   ├── domain/               # Core data models (Chat, Material, etc.)
+│   ├── handlers/             # HTTP route handlers (Gin)
+│   ├── middleware/           # CORS, Rate Limiting, JWT Auth
+│   ├── repositories/         # Data access layer (SQL/pgx)
+│   ├── services/             # Business logic (Gemini, Hybrid RAG)
+│   ├── utils/                # JWT generation, token utilities
+│   ├── Dockerfile            # Container configuration
+│   └── main.go               # Application entrypoint & router
+├── frontend/                 # React SPA
+│   ├── public/               # Static assets & _redirects (CF routing)
 │   ├── src/
-│   │   ├── api/        # Axios API client and SSE stream parsers
-│   │   ├── components/ # Reusable UI, ChatPanel, DataSheet
-│   │   ├── hooks/      # Custom React hooks (useChat)
-│   │   ├── pages/      # Route entry points (AuthPage, ChatPage)
-│   │   └── store/      # Zustand state management
-├── data/               # SQL schemas and DB initialization
-└── docker-compose.yml  # Local infrastructure orchestration
+│   │   ├── api/              # Axios client and data fetching
+│   │   ├── components/       # Reusable UI elements (Hero, Panel)
+│   │   ├── pages/            # View components (Auth, Chat, Home)
+│   │   ├── store/            # Zustand global state
+│   │   └── styles/           # Tailwind configuration & global CSS
+│   ├── package.json          # Node dependencies
+│   └── vite.config.ts        # Bundler configuration
+├── data/                     # Utilities for embedding generation/DB seeding
+├── .github/workflows/        # Automated CI/CD pipelines
+└── docker-compose.yml        # Local development infrastructure
 ```
 
 ## Database Design
+The schema uses a relational model optimized for high-dimensional vector search and flexible property storage.
 
-The application relies on a strictly relational schema with vector support:
-
-- `users`: Core identity table (BIGSERIAL PK).
-- `chats`: Represents an isolated conversation session (FK `user_id`).
-- `messages`: Chronological conversation turns (FK `chat_id`).
-- `materials`: Highly structured material property rows (e.g., `density`, `yield_strength`).
-- `material_embeddings`: High-dimensional vector representations of material descriptions.
+```mermaid
+erDiagram
+    users {
+        bigint id PK
+        string email
+        string full_name
+        string provider
+    }
+    chats {
+        bigint id PK
+        bigint user_id FK
+        string title
+        boolean is_active
+        timestamp created_at
+    }
+    messages {
+        bigint id PK
+        bigint chat_id FK
+        string sender_role
+        jsonb content
+        int tokens_used
+    }
+    materials {
+        bigint id PK
+        string name
+        string category
+        jsonb specific_properties
+        vector embedding
+    }
+    
+    users ||--o{ chats : "creates"
+    chats ||--o{ messages : "contains"
+```
 
 ## API Documentation
+The API follows RESTful principles, secured via Bearer JWTs.
 
 ### Public Routes
-- `GET /health` - API health check.
-- `GET /api/auth/google/login` - Initiate Google OAuth2 flow.
-- `GET /api/auth/google/callback` - Handle OAuth2 redirect.
+* `GET /health` - Liveness probe.
+* `GET /healthz` - Deep infrastructure readiness probe (tests DB and Redis connectivity).
+* `GET /api/auth/:provider/login` - Initiates Google OAuth.
+* `GET /api/auth/:provider/callback` - Completes OAuth, returns Popup `postMessage` script.
 
-### Protected Routes (Requires JWT Session)
-- `GET /api/auth/me` - Retrieve current user profile.
-- `POST /api/auth/logout` - Invalidate session.
-- `POST /api/chat/create` - Initialize a new chat session.
-- `GET /api/chat/list` - Retrieve all user sessions.
-- `GET /api/chat/:chat_id/messages` - Retrieve session history.
-- `POST /api/chat/:chat_id/messages` - Append user message to history.
-- `POST /api/search` - Execute Hybrid RAG query (Returns Server-Sent Events).
-- `POST /api/chat/followup` - Query the LLM based on previous chat context.
+### Protected Routes (Requires `Authorization: Bearer <token>`)
+* `GET /api/auth/me` - Validates session and returns current user context.
+* `POST /api/auth/logout` - Terminates session.
+* `POST /api/search` - Executes hybrid RAG against the material DB.
+* `POST /api/chat/followup` - Processes multi-turn conversation context.
+* `POST /api/chat/create` - Initializes a new persistent chat session.
+* `GET /api/chat/list` - Retrieves all active chats for the authenticated user.
+* `GET /api/chat/:chat_id/messages` - Retrieves the message history for a specific chat.
+* `POST /api/chat/:chat_id/messages` - Appends a new message to the chat.
+* `POST /api/chat/:chat_id/archive` - Soft-deletes a chat session.
 
 ## Authentication & Authorization
+The application uses a secure, cross-domain optimized OAuth 2.0 implementation.
+1. The user clicks "Sign In", opening a popup window directed to `/api/auth/google/login`.
+2. Google authenticates the user and redirects to the backend callback.
+3. The backend issues a JWT and returns an HTML snippet to the popup window.
+4. The popup script executes `window.opener.postMessage({ token: "..." }, "FRONTEND_ORIGIN")`.
+5. The frontend SPA listens for the message, extracts the JWT, saves it to `localStorage`, and closes the popup.
+6. Subsequent requests include the JWT in the `Authorization: Bearer` header.
 
-The system utilizes an **OAuth2 to JWT Session Cookie** flow. 
-1. The user authenticates via Google Workspace (via the `goth` library).
-2. The backend performs an `UPSERT` on the `users` table, explicitly validating the provider to prevent Account Takeover via provider confusion.
-3. A stateless JWT is minted and set as a strict, `HTTP-Only`, `Secure` cookie (`session_token`).
-4. Protected routes pass through the `RequireAuth` middleware, which decodes the JWT and sets the `user_id` in the Gin context.
+*Decision Context:* A popup-based `postMessage` flow was explicitly chosen over a standard URL redirect (`?token=...`) to prevent tokens from leaking into browser history/referers and to bypass aggressive cross-domain third-party cookie blocking in modern browsers (Safari, Chrome Incognito).
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `PORT` | API Port (Default: 8080) | No |
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `REDIS_URL` | Redis connection string | Yes |
-| `GEMINI_API_KEY` | Google Gemini API Key | Yes |
-| `GOOGLE_CLIENT_ID` | Google OAuth2 Client ID | Yes |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth2 Secret | Yes |
-| `JWT_SECRET` | Secret key for signing Session Cookies | Yes |
-| `FRONTEND_ORIGIN` | Comma-separated list of allowed CORS origins | Yes |
-| `BACKEND_URL` | Base URL for the API (used in OAuth callback) | Yes |
+### Backend (`.env`)
+```bash
+# Core Services
+PORT=8080
+GIN_MODE=release
+
+# Database
+DATABASE_URL=postgres://user:password@neon.tech/dbname
+
+# Redis
+REDIS_URL=redis://default:password@upstash.io:6379
+
+# AI Integrations
+GEMINI_API_KEY=your_gemini_key
+
+# Authentication
+JWT_SECRET=super_secure_random_string
+GOOGLE_CLIENT_ID=your_google_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_google_secret
+BACKEND_URL=https://api.materials-mind.com
+FRONTEND_ORIGIN=https://materials-mind.pages.dev
+```
+
+### Frontend (`.env`)
+```bash
+VITE_API_URL=https://api.materials-mind.com/api
+```
 
 ## Local Development Setup
 
-1. **Clone the repository:**
+1. **Clone the repository.**
+2. **Start Infrastructure:**
    ```bash
-   git clone https://github.com/organization/materials_mind.git
-   cd materials_mind
+   docker-compose up -d postgres redis
    ```
-
-2. **Start Infrastructure (DB & Redis):**
-   ```bash
-   docker-compose up -d postgres redis pgbouncer
-   ```
-
-3. **Backend Setup:**
+3. **Run Backend:**
    ```bash
    cd backend
-   go mod download
    go run main.go
    ```
-
-4. **Frontend Setup:**
+4. **Run Frontend:**
    ```bash
    cd frontend
    npm install
@@ -177,67 +194,50 @@ The system utilizes an **OAuth2 to JWT Session Cookie** flow.
    ```
 
 ## Development Workflow
-
-- The frontend utilizes Vite for rapid HMR (Hot Module Replacement).
-- The backend relies on standard `go build`. Ensure `go test ./...` passes before pushing.
-- Pre-commit hooks should be utilized to enforce `gofmt` and ESLint standards.
-
-## Testing
-
-- **Backend**: Standard Go testing framework (`go test`).
-- **Frontend**: Currently reliant on manual E2E validation. 
-- *Note: Integration tests for the LLM pipeline use mock interfaces to prevent exhausting API quotas.*
+All commits to the `main` branch trigger automated GitHub Actions pipelines. Features should be developed in feature branches and merged via Pull Requests. The backend requires running `go mod tidy` and testing before pushing to prevent CI failures.
 
 ## Deployment
-
-The application is container-ready. 
-1. Build the frontend via `npm run build` and serve via NGINX.
-2. Compile the Go binary for the target architecture (`GOOS=linux GOARCH=amd64`).
-3. Deploy behind a Reverse Proxy (e.g., AWS ALB or NGINX) with TLS termination. Ensure `Secure` cookie flags are active.
+Deployment is fully automated via GitHub Actions (`.github/workflows/deploy-frontend.yml` and `deploy-backend.yml`).
+* **Frontend:** Pushed directly to Cloudflare Pages via Wrangler. The `_redirects` file ensures the SPA router correctly handles paths like `/chat`.
+* **Backend:** Pushed to Hugging Face Spaces via a Docker deployment. Large binaries are strictly excluded via `.gitignore` and `.dockerignore`.
 
 ## Monitoring & Logging
-
-- Standard output logging via Go's `log` package.
-- API requests passing through Gin are logged automatically.
-- Redis acts as a fast cache for LLM outputs, which drastically reduces API costs and monitors repetitive queries.
+* The application provides a deep `/healthz` endpoint returning HTTP 503 if the database or cache connections degrade.
+* The backend logs critical application panics, failed database constraints, and rate-limiting triggers natively via Gin's logging middleware.
 
 ## Security Considerations
-
-- **XSS Protection**: Frontend markdown is strictly sanitized using `rehype-sanitize` before rendering LLM output.
-- **Prompt Injection Defense**: System/Assistant roles in the database are strictly enforced by the backend; clients cannot inject historical context.
-- **Rate Limiting**: Configured per `user_id` via Redis to prevent authenticated NAT-level Denial of Service.
-- **SQL Injection**: All database queries utilize parameterized `pgx` executions.
-- **Account Takeover**: OAuth provider validation is strictly enforced during upsert operations.
+* **CORS:** Strictly bound to `FRONTEND_ORIGIN`, explicitly rejecting wildcard configurations to prevent CSRF.
+* **Rate Limiting:** IP-based rate limiting via Upstash Redis protects the expensive LLM execution paths from abuse or scraping.
+* **Data Sanitization:** The frontend implements robust token removal on logout to guarantee complete state clearance.
+* **SQL Injection:** The `pgxpool` driver exclusively uses parameterized statements and strict type casting for all user inputs.
 
 ## Performance Optimizations
+* **Hybrid Execution:** By allowing SQL `WHERE` constraints to pre-filter rows before vector similarity is executed, query latencies on large datasets are significantly reduced.
+* **Redis Caching:** Minimizes redundant LLM API calls and stabilizes latency.
+* **Vite Bundling:** Frontend assets are optimized, tree-shaken, and minified during the CI build process.
 
-- **Streaming Architecture**: The UI utilizes Server-Sent Events to render LLM responses byte-by-byte, eliminating TTFB (Time to First Byte) blocking.
-- **UI Layout Thrashing**: Textarea auto-resizing is debounced to 10ms to prevent browser thread locking during rapid typing.
-- **Connection Pooling**: `PgBouncer` is utilized to multiplex Postgres connections efficiently.
+## Documentation Gaps
+* Missing comprehensive OpenAPI/Swagger definitions for the REST API.
+* Missing a definitive `CONTRIBUTING.md` outlining the local DB seeding process (`data/seed_db.py`).
+* Lacking explicit documentation on how to rotate the `JWT_SECRET` gracefully across active sessions.
 
-## Scalability Considerations
+---
 
-The application is designed to scale horizontally. Because sessions are managed statelessly via JWT cookies and the LLM cache is centralized in Redis, multiple Go API nodes can be spun up behind a load balancer without sticky sessions. 
+## Engineering Review
 
-## Known Limitations
+### Issues Found
 
-- **Stateless Search**: The initial `/search` endpoint does not inherently persist the generated response. The client is responsible for subsequently pushing the received message into the chat history via a POST request.
-- **Hardcoded Prompts**: LLM system prompts are currently embedded within the Go source code, requiring a recompile to adjust personality or extraction parameters.
+**1. Lack of Automated Test Coverage**
+* **Severity:** High
+* **Issue:** The repository currently lacks an automated test suite (unit/integration tests) for both the Go backend and React frontend.
+* **Recommendation:** Implement `go test` for critical business logic (JWT validation, RAG pipeline construction) and Cypress/Playwright for end-to-end testing of the OAuth flow and chat workspace.
 
-## Future Improvements
+**2. Missing Graceful Shutdown on Backend**
+* **Severity:** Medium
+* **Issue:** The `main.go` uses `r.Run(":" + port)` which does not gracefully handle `SIGTERM` signals. Deployments on Hugging Face or Kubernetes may instantly kill active LLM streams or database transactions during container rotation.
+* **Recommendation:** Implement an `http.Server` with `Shutdown(ctx)` listening to `os.Interrupt` and `syscall.SIGTERM`.
 
-- Migrate hardcoded prompts to an external configuration table.
-- Implement pagination for `GET /chat/:id/messages` to support infinitely long contexts.
-- Add backend telemetry (e.g., OpenTelemetry) for granular latency tracing across the RAG pipeline.
-
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/amazing-feature`).
-3. Commit your changes (`git commit -m 'Add amazing feature'`).
-4. Push to the branch (`git push origin feature/amazing-feature`).
-5. Open a Pull Request.
-
-## License
-
-Copyright © 2026. All Rights Reserved. Proprietary and confidential.
+**3. Single Provider Fallback Risk**
+* **Severity:** Medium
+* **Issue:** The backend logic heavily couples business logic directly to `services.InitGemini()`. If the Gemini API experiences an outage, the entire core product fails.
+* **Recommendation:** Implement an interface abstraction over the LLM generation (e.g., `LLMProvider`) and implement a multi-tier fallback engine (OpenRouter, Anthropic, etc.) to handle rate-limiting or service outages automatically.
