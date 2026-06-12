@@ -94,8 +94,8 @@ func Me(c *gin.Context) {
 			id::text, 
 			email, 
 			COALESCE(full_name, ''),
-			(SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE),
-			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE)
+			(SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE)::int,
+			(SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE)::int
 		 FROM users WHERE id = $1`,
 		userIDInt,
 	).Scan(&user.UserID, &user.Email, &user.Name, &user.ChatsUsed, &user.MessagesUsed)

@@ -153,6 +153,7 @@ func corsMiddleware() gin.HandlerFunc {
 		// Allow configured origin, any localhost, or any cloudflare pages preview/prod deployment
 		if origin == os.Getenv("FRONTEND_ORIGIN") || 
 		   strings.HasPrefix(origin, "http://localhost:") || 
+		   strings.HasPrefix(origin, "http://127.0.0.1:") || 
 		   strings.HasSuffix(origin, ".pages.dev") {
 			allowed = true
 		}

@@ -8,7 +8,7 @@
  * All page-level logic lives in src/pages/.
  */
 import React, { useEffect, useState } from 'react'
-import { setUnauthorizedHandler } from './api/client'
+import { setUnauthorizedHandler, getMe } from './api/client'
 import { useAppStore } from './store/useAppStore'
 import { HomePage } from './components/HomePage'
 import ChatPage from './pages/ChatPage'
@@ -36,6 +36,16 @@ const App: React.FC = () => {
     })
   }, [setUser])
 
+  // Initial auth check for persistent sessions when users land directly on the app
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token')
+    if (token && window.location.pathname !== CHAT_ROUTE) {
+      getMe()
+        .then(setUser)
+        .catch(() => setUser(null))
+    }
+  }, [setUser])
+
   // Minimal client-side router
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -43,9 +53,12 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  // Sanitize trailing slashes to ensure robust routing
+  const currentPath = pathname.replace(/\/$/, '') || '/'
+
   return (
     <ErrorBoundary>
-      {pathname === CHAT_ROUTE ? (
+      {currentPath === CHAT_ROUTE ? (
         <ChatPage />
       ) : (
         <HomePage onStartChat={() => navigateTo(CHAT_ROUTE)} />
