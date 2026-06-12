@@ -143,6 +143,18 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
 
   if (!structured) return null
 
+  const recommendedCandidate = structured.candidates?.find(c => c.name === structured.recommended_material)
+
+  const renderProperty = (label: string, value: number | string | undefined, unit: string = '') => {
+    if (value === undefined || value === null) return null
+    return (
+      <div className="flex flex-col p-3 bg-background border border-border rounded-md shadow-sm">
+        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 font-mono">{label}</span>
+        <span className="text-sm font-medium text-foreground tracking-tight">{value}{unit ? ` ${unit}` : ''}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-6 space-y-8 bg-zinc-50 dark:bg-zinc-900/30">
       <div>
@@ -156,35 +168,33 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
         )}
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2">
-            <Check size={12} className="text-green-500" /> Validation
+      {recommendedCandidate && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-foreground mb-3 uppercase tracking-widest border-b border-border pb-2">
+            <Database size={12} className="text-primary" /> Core Properties
           </div>
-          <ul className="space-y-2">
-            {(structured.why_it_matches || []).map((why, i) => (
-              <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-4 relative">
-                <span className="absolute left-0 top-1.5 w-1 h-1 rounded-full bg-border"></span>
-                {why}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2 mt-6">
-            <AlertTriangle size={12} className="text-amber-500" /> Trade-offs
+          <div className="grid grid-cols-2 gap-3">
+            {renderProperty("Density", recommendedCandidate.density, "g/cm³")}
+            {renderProperty("Yield Strength", recommendedCandidate.yield_strength, "MPa")}
+            {renderProperty("Tensile Str", recommendedCandidate.tensile_strength, "MPa")}
+            {renderProperty("Young's Modulus", recommendedCandidate.youngs_modulus, "GPa")}
+            {renderProperty("Melting Point", recommendedCandidate.melting_point, "°C")}
+            {renderProperty("Boiling Point", recommendedCandidate.boiling_point, "°C")}
+            {renderProperty("Glass Transition", recommendedCandidate.glass_transition_temp, "°C")}
+            {renderProperty("Heat Deflection", recommendedCandidate.heat_deflection_temp, "°C")}
+            {renderProperty("Thermal Cond", recommendedCandidate.thermal_conductivity, "W/m·K")}
+            {renderProperty("Specific Heat", recommendedCandidate.specific_heat, "J/kg·K")}
+            {renderProperty("Thermal Exp", recommendedCandidate.thermal_expansion, "µm/m·K")}
+            {renderProperty("Hardness", recommendedCandidate.hardness_vickers, "HV")}
+            {renderProperty("Poisson's", recommendedCandidate.poissons_ratio)}
+            {renderProperty("Elec Resistivity", recommendedCandidate.electrical_resistivity, "Ω·m")}
+            {renderProperty("Fracture Toughness", recommendedCandidate.fracture_toughness, "MPa·m^0.5")}
+            {renderProperty("Crystal System", recommendedCandidate.crystal_system)}
+            {renderProperty("Processing Min", recommendedCandidate.processing_temp_min_c, "°C")}
+            {renderProperty("Processing Max", recommendedCandidate.processing_temp_max_c, "°C")}
           </div>
-          <ul className="space-y-2">
-            {(structured.trade_offs || []).map((trade, i) => (
-              <li key={i} className="text-xs text-muted-foreground leading-relaxed pl-4 relative">
-                <span className="absolute left-0 top-1.5 w-1 h-1 rounded-full bg-border"></span>
-                {trade}
-              </li>
-            ))}
-          </ul>
         </div>
-      </div>
+      )}
 
       {structured.candidates && structured.candidates.length > 0 && (
         <div className="mt-8 border-t border-border pt-6">
