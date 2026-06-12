@@ -8,7 +8,7 @@
  * All page-level logic lives in src/pages/.
  */
 import React, { useEffect, useState } from 'react'
-import { setUnauthorizedHandler, getMe } from './api/client'
+import { setUnauthorizedHandler, getMe, setAuthToken } from './api/client'
 import { useAppStore } from './store/useAppStore'
 import { HomePage } from './components/HomePage'
 import ChatPage from './pages/ChatPage'
@@ -44,6 +44,21 @@ const App: React.FC = () => {
         .then(setUser)
         .catch(() => setUser(null))
     }
+  }, [setUser])
+
+  // Listen for secure authentication postMessage from popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'AUTH_SUCCESS' && event.data?.token) {
+        setAuthToken(event.data.token)
+        getMe()
+          .then(setUser)
+          .then(() => navigateTo(CHAT_ROUTE))
+          .catch(() => setUser(null))
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
   }, [setUser])
 
   // Minimal client-side router

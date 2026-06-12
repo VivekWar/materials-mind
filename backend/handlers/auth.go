@@ -71,7 +71,25 @@ func GothCallback(c *gin.Context) {
 	if frontendOrigin == "" {
 		frontendOrigin = "http://localhost:5173"
 	}
-	c.Redirect(http.StatusFound, frontendOrigin+"/chat?token="+token)
+
+	html := fmt.Sprintf(`
+		<!DOCTYPE html>
+		<html>
+		<head><title>Authenticating...</title></head>
+		<body>
+			<script>
+				if (window.opener) {
+					window.opener.postMessage({ type: 'AUTH_SUCCESS', token: '%s' }, '%s');
+					window.close();
+				} else {
+					window.location.href = '%s/chat?token=%s';
+				}
+			</script>
+		</body>
+		</html>
+	`, token, frontendOrigin, frontendOrigin, token)
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
 func Me(c *gin.Context) {

@@ -47,16 +47,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
               Architecture
             </a>
             {!user && (
-              <a href={loginUrl} style={{ textDecoration: 'none' }}>
-                <Button
-                  id="btn-nav-login"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs font-medium rounded-md shadow-sm border-border/80"
-                >
-                  Sign In
-                </Button>
-              </a>
+              <Button
+                id="btn-nav-login"
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(loginUrl, "Google Login", "width=500,height=600")}
+                className="h-8 text-xs font-medium rounded-md shadow-sm border-border/80"
+              >
+                Sign In
+              </Button>
             )}
             <Button
               id="btn-nav-start"
@@ -95,7 +94,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
                   id="btn-hero-start"
-                  onClick={user ? onStartChat : () => window.location.href = loginUrl}
+                  onClick={user ? onStartChat : () => window.open(loginUrl, "Google Login", "width=500,height=600")}
                   className="h-12 px-6 text-sm font-medium"
                 >
                   Enter Console <ArrowRight size={14} className="ml-2" />
@@ -268,13 +267,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartChat }) => {
             </p>
             <div className="flex items-center justify-center gap-4">
               {!user && (
-                <a href={loginUrl} style={{ textDecoration: 'none' }}>
-                  <Button id="btn-cta-login" variant="outline" className="h-11 px-8 border-border/80 bg-background">
-                    Sign In with Google
-                  </Button>
-                </a>
+                <Button 
+                  id="btn-cta-login" 
+                  variant="outline" 
+                  onClick={() => window.open(loginUrl, "Google Login", "width=500,height=600")}
+                  className="h-11 px-8 border-border/80 bg-background"
+                >
+                  Sign In with Google
+                </Button>
               )}
-              <Button id="btn-cta-start" onClick={user ? onStartChat : () => window.location.href = loginUrl} className="h-11 px-8">
+              <Button id="btn-cta-start" onClick={user ? onStartChat : () => window.open(loginUrl, "Google Login", "width=500,height=600")} className="h-11 px-8">
                 Console Access
               </Button>
             </div>
