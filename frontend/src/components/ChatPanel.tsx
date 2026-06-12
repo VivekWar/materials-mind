@@ -147,10 +147,26 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
 
   const renderProperty = (label: string, value: number | string | undefined, unit: string = '') => {
     if (value === undefined || value === null || value === 0 || value === '') return null
+    
+    let displayElement: React.ReactNode = value
+    if (typeof value === 'number') {
+      if (Math.abs(value) < 0.001 || Math.abs(value) >= 100000) {
+        const [base, exponent] = value.toExponential(2).split('e')
+        displayElement = (
+          <span>
+            {base} &times; 10<sup>{exponent.replace('+', '')}</sup>
+          </span>
+        )
+      } else {
+        // Remove trailing zeroes if it has decimals, but limit to reasonable precision
+        displayElement = Number.isInteger(value) ? value : parseFloat(value.toFixed(4))
+      }
+    }
+
     return (
       <div className="flex flex-col p-3 bg-background border border-border rounded-md shadow-sm">
         <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 font-mono">{label}</span>
-        <span className="text-sm font-medium text-foreground tracking-tight">{value}{unit ? ` ${unit}` : ''}</span>
+        <span className="text-sm font-medium text-foreground tracking-tight">{displayElement}{unit ? ` ${unit}` : ''}</span>
       </div>
     )
   }
