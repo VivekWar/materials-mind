@@ -146,7 +146,7 @@ const DataSheetPane: React.FC<{ structured?: StructuredRecommendation; streaming
   const recommendedCandidate = structured.candidates?.find(c => c.name === structured.recommended_material)
 
   const renderProperty = (label: string, value: number | string | undefined, unit: string = '') => {
-    if (value === undefined || value === null) return null
+    if (value === undefined || value === null || value === 0 || value === '') return null
     return (
       <div className="flex flex-col p-3 bg-background border border-border rounded-md shadow-sm">
         <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1 font-mono">{label}</span>
