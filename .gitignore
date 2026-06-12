@@ -11,9 +11,10 @@ data/.venv/
 venv/
 ENV/
 
-# Database dumps
+# Database dumps and CSV datasets
 data/*_dump.sql
 data/local_dump.sql
+data/*.csv
 # Dependencies
 node_modules/
 backend/node_modules/
