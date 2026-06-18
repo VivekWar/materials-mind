@@ -189,7 +189,7 @@ User Query: %s`, query)
 	
 	var resp *genai.GenerateContentResponse
 	var err error
-	utils.Backoff(ctx, 3, 5*time.Second, 30*time.Second, func() error {
+	utils.Backoff(ctx, 5, 5*time.Second, 60*time.Second, func() error {
 		resp, err = model.GenerateContent(ctx, genai.Text(prompt))
 		return err
 	})
@@ -263,7 +263,7 @@ func (s *searchService) generateStructuredRecommendation(
 		var response *genai.GenerateContentResponse
 		var llmErr error
 
-		err := utils.Backoff(ctx, 3, 5*time.Second, 30*time.Second, func() error {
+		err := utils.Backoff(ctx, 5, 5*time.Second, 60*time.Second, func() error {
 			response, llmErr = model.GenerateContent(ctx, genai.Text(prompt))
 			return llmErr
 		})
