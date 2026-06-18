@@ -45,7 +45,7 @@ The system is built around a Hybrid RAG pipeline. When an engineer submits a que
 * **Backend:** Golang 1.22+, Gin (HTTP Framework), pgx/v5 (PostgreSQL Driver), Goth (OAuth).
 * **Database:** Neon Serverless PostgreSQL with `pgvector` extension.
 * **Cache/Rate Limiting:** Upstash Redis.
-* **AI Provider:** Google Gemini API (`gemini-1.5-flash`).
+* **AI Provider:** Google Gemini API (`gemini-3-flash`).
 * **Deployment:** Cloudflare Pages (Frontend), Hugging Face Spaces / Docker (Backend), GitHub Actions (CI/CD).
 
 ## Folder Structure
