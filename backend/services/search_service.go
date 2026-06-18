@@ -185,7 +185,7 @@ User Query: %s`, query)
 		return domain.SearchIntent{}, errors.New("gemini client not initialized")
 	}
 	model := GetGenerativeModel()
-	// Optionally set response mime type to json to ensure validity, but it's supported on specific gemini models.
+	model.ResponseMIMEType = "application/json"
 	
 	var resp *genai.GenerateContentResponse
 	var err error
@@ -257,6 +257,7 @@ func (s *searchService) generateStructuredRecommendation(
 	industryDomain string,
 	candidates []domain.MaterialCandidate,
 ) (*domain.StructuredRecommendation, error) {
+	model.ResponseMIMEType = "application/json"
 	prompt := s.buildStructuredRecommendationPrompt(query, industryDomain, candidates)
 	for attempt := 1; attempt <= maxLLMParseAttempts; attempt++ {
 		var response *genai.GenerateContentResponse
