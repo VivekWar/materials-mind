@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vivekwar/materialmind/domain"
+	"github.com/vivekwar/materials-mind/backend/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

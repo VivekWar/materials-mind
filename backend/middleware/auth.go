@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 	"github.com/gin-gonic/gin"
-	"github.com/vivekwar/materialmind/utils"
+	"github.com/vivekwar/materials-mind/backend/utils"
 )
 
 func RequireAuth() gin.HandlerFunc {

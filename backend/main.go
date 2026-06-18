@@ -2,22 +2,17 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"github.com/vivekwar/materialmind/db"
-	"github.com/vivekwar/materialmind/handlers"
-	"github.com/vivekwar/materialmind/middleware"
-	"github.com/vivekwar/materialmind/repositories"
-	"github.com/vivekwar/materialmind/services"
-	"github.com/vivekwar/materialmind/utils"
-	"github.com/gorilla/sessions"
-	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/google"
+	"github.com/vivekwar/materials-mind/backend/db"
+	"github.com/vivekwar/materials-mind/backend/handlers"
+	"github.com/vivekwar/materials-mind/backend/middleware"
+	"github.com/vivekwar/materials-mind/backend/repositories"
+	"github.com/vivekwar/materials-mind/backend/services"
+	"github.com/vivekwar/materials-mind/backend/utils"
 )
 
 func main() {
@@ -27,6 +22,9 @@ func main() {
 
 	// 1. Fail-Fast Infrastructure Initialization
 	utils.InitJWT()
+	if err := utils.InitOAuth(); err != nil {
+		log.Fatalf("OAuth Initialization Failed: %v", err)
+	}
 	db.InitPostgres()
 	db.InitRedis()
 	services.InitGemini()
@@ -40,35 +38,6 @@ func main() {
 
 	chatHandler := handlers.NewChatHandler(chatSvc, searchSvc)
 	searchHandler := handlers.NewSearchHandler(searchSvc)
-
-	// 1.5 Goth OAuth Initialization
-	sessionSecret := os.Getenv("JWT_SECRET")
-	if sessionSecret == "" {
-		sessionSecret = "fallback-secret-for-dev"
-	}
-	store := sessions.NewCookieStore([]byte(sessionSecret))
-	store.MaxAge(86400 * 30) // 30 days
-	store.Options.Path = "/"
-	store.Options.HttpOnly = true
-	// Use Secure=true in production (GIN_MODE=release) so cookies are sent over HTTPS.
-	// In local dev (GIN_MODE unset or "debug"), keep it false so HTTP works.
-	isProduction := os.Getenv("GIN_MODE") == "release"
-	store.Options.Secure = isProduction
-	if isProduction {
-		store.Options.SameSite = http.SameSiteNoneMode // Required for cross-site cookies (HF Space → CF Pages)
-	} else {
-		store.Options.SameSite = http.SameSiteLaxMode
-	}
-	gothic.Store = store
-
-	backendURL := os.Getenv("BACKEND_URL")
-	if backendURL == "" {
-		backendURL = "http://localhost:8080"
-	}
-	googleProvider := google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), backendURL+"/api/auth/google/callback")
-	googleProvider.SetPrompt("select_account")
-
-	goth.UseProviders(googleProvider)
 
 	// 2. Router Setup
 	r := gin.Default()

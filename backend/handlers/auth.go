@@ -11,8 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
-	"github.com/vivekwar/materialmind/db"
-	"github.com/vivekwar/materialmind/utils"
+	"github.com/vivekwar/materials-mind/backend/db"
+	"github.com/vivekwar/materials-mind/backend/utils"
 )
 
 type authUser struct {

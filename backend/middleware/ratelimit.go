@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 	"github.com/gin-gonic/gin"
-	"github.com/vivekwar/materialmind/db"
+	"github.com/vivekwar/materials-mind/backend/db"
 )
 
 func RateLimit() gin.HandlerFunc {

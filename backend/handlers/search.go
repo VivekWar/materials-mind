@@ -6,8 +6,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vivekwar/materialmind/db"
-	"github.com/vivekwar/materialmind/services"
+	"github.com/vivekwar/materials-mind/backend/db"
+	"github.com/vivekwar/materials-mind/backend/services"
 )
 
 const minSearchQueryRunes = 3

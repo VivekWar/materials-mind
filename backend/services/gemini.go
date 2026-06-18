@@ -18,7 +18,7 @@ var GeminiClient *genai.Client
 
 const (
 	EmbeddingModelName    = "gemini-embedding-001"
-	GenerativeModelName   = "gemini-3.1-pro-preview"
+	GenerativeModelName   = "gemini-3-flash"
 	maxEmbeddingRetries   = 3
 	maxEmbeddingInputRune = 5000
 )

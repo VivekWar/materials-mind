@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vivekwar/materialmind/db"
-	"github.com/vivekwar/materialmind/domain"
-	"github.com/vivekwar/materialmind/repositories"
+	"github.com/vivekwar/materials-mind/backend/db"
+	"github.com/vivekwar/materials-mind/backend/domain"
+	"github.com/vivekwar/materials-mind/backend/repositories"
 )
 
 type ChatService interface {

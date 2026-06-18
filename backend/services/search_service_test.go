@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vivekwar/materialmind/domain"
+	"github.com/vivekwar/materials-mind/backend/domain"
 )
 
 func TestParseStructuredRecommendation_WithCodeFence(t *testing.T) {

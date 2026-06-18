@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
-	"github.com/vivekwar/materialmind/domain"
-	"github.com/vivekwar/materialmind/repositories"
-	"github.com/vivekwar/materialmind/utils"
-	"github.com/vivekwar/materialmind/db" // For redis cache
+	"github.com/vivekwar/materials-mind/backend/domain"
+	"github.com/vivekwar/materials-mind/backend/repositories"
+	"github.com/vivekwar/materials-mind/backend/utils"
+	"github.com/vivekwar/materials-mind/backend/db" // For redis cache
 )
 
 const (

@@ -1,4 +1,4 @@
-module github.com/vivekwar/materialmind
+module github.com/vivekwar/materials-mind/backend
 
 go 1.25.8
 

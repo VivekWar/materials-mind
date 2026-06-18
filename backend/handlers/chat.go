@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vivekwar/materialmind/domain"
+	"github.com/vivekwar/materials-mind/backend/domain"
 )
 
 func (h *SearchHandler) ChatFollowup(c *gin.Context) {
