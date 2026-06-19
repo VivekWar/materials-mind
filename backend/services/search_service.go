@@ -607,7 +607,7 @@ func (s *searchService) GenerateTitle(ctx context.Context, query string) (string
 		return "New chat", errors.New("gemini client not initialized")
 	}
 
-	model := client.GenerativeModel("gemini-3.5-flash")
+	model := client.GenerativeModel("gemini-3.1-flash-lite")
 	model.SetTemperature(0.7)
 
 	prompt := fmt.Sprintf(`Generate a very concise, 2-to-4 word topic title for a chat session based on this user's first message. 

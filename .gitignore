@@ -67,3 +67,5 @@ backend/materialmind
 out.txt
 *.patch
 check_chats.go
+backend/check_models.go
+backend/models.txt
