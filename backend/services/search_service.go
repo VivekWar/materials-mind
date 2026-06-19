@@ -42,20 +42,26 @@ func NewSearchService(repo repositories.MaterialRepository) SearchService {
 	return &searchService{repo: repo}
 }
 
-// ProcessSearch handles the Hybrid RAG workflow: normalizes queries, extracts intent,
-// performs parallel vector and SQL retrieval, applies domain multipliers, and prompts Gemini.
 func (s *searchService) ProcessSearch(ctx context.Context, query string, industryDomain string) (*domain.StructuredRecommendation, error) {
 	normalizedQuery := s.normalizeSearchQuery(query)
-	intent, err := s.extractSearchIntent(ctx, normalizedQuery)
-	if err != nil {
-		log.Printf("intent extraction failed: %v", err)
-	}
-	intentBytes, _ := json.Marshal(intent)
 
-	cacheKey := s.cacheKeyFor("search:intent:v1", string(intentBytes)+":"+industryDomain)
+	// Check cache IMMEDIATELY based on the query to save all Gemini API calls!
+	cacheKey := s.cacheKeyFor("search:v2", normalizedQuery+":"+industryDomain)
 	if cached, ok := s.getCachedStructuredRecommendation(ctx, cacheKey); ok {
 		return cached, nil
 	}
+
+	type intentResult struct {
+		intent domain.SearchIntent
+		err    error
+	}
+	intentCh := make(chan intentResult, 1)
+
+	// Run Intent Extraction concurrently
+	go func() {
+		intent, err := s.extractSearchIntent(ctx, normalizedQuery)
+		intentCh <- intentResult{intent, err}
+	}()
 
 	type resultOrErr struct {
 		candidates []domain.MaterialCandidate
@@ -65,7 +71,7 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 	vecCh := make(chan resultOrErr, 1)
 	kwCh := make(chan resultOrErr, 1)
 
-	// Vector path
+	// Vector path (starts IMMEDIATELY, fully parallel with intent extraction)
 	go func() {
 		var v []float32
 		var embErr error
@@ -78,13 +84,16 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 			return
 		}
 
-		categoryFilter := ""
-		// We no longer have a generic Category field in intent; it uses Domain. Wait, we can leave this blank or match domain.
-		// Since intent.Category is gone, we'll remove it.
-
-		out, qErr := s.repo.SearchByVector(ctx, v, maxSearchResults, categoryFilter)
+		out, qErr := s.repo.SearchByVector(ctx, v, maxSearchResults, "")
 		vecCh <- resultOrErr{out, qErr}
 	}()
+
+	// Wait for intent to start keyword search
+	iRes := <-intentCh
+	intent := iRes.intent
+	if iRes.err != nil {
+		log.Printf("intent extraction failed: %v", iRes.err)
+	}
 
 	// Keyword path
 	go func() {
