@@ -121,6 +121,24 @@ func TestValidateRecommendation_FailsForUnknownSource(t *testing.T) {
 	}
 }
 
+func TestMatchesDomain(t *testing.T) {
+	cases := []struct {
+		category string
+		domain   string
+		want     bool
+	}{
+		{"Aerospace Alloys", "aerospace", true},
+		{"Metal", "automotive metal parts", true},
+		{"Ceramic", "aerospace", false},
+		{"", "aerospace", false},
+	}
+	for _, tc := range cases {
+		if got := matchesDomain(tc.category, tc.domain); got != tc.want {
+			t.Fatalf("matchesDomain(%q, %q) = %v, want %v", tc.category, tc.domain, got, tc.want)
+		}
+	}
+}
+
 func TestNormalizeSearchQuery(t *testing.T) {
 	s := &searchService{}
 	out := s.normalizeSearchQuery("  titanium   frame\n\tfor   drone ")

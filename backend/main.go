@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -91,16 +96,36 @@ func main() {
 		protected.POST("/chat/:chat_id/title/generate", chatHandler.GenerateTitle)
 	}
 
-	// 5. Boot Server
+	// 5. Boot Server (graceful shutdown so in-flight requests/LLM calls survive
+	// container rotation on Hugging Face Spaces / Kubernetes SIGTERM signals)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	log.Printf("🚀 MaterialMind API running on port %s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Critical: Server crashed: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("🚀 MaterialMind API running on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Critical: Server crashed: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutdown signal received, draining in-flight requests...")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Critical: Graceful shutdown failed: %v", err)
+	}
+	log.Println("Server exited cleanly")
 }
 
 func loadEnvFile() error {
@@ -120,12 +145,21 @@ func corsMiddleware() gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 		
 		allowed := false
-		// Allow configured origin, any localhost, or any cloudflare pages preview/prod deployment
-		if origin == os.Getenv("FRONTEND_ORIGIN") || 
-		   strings.HasPrefix(origin, "http://localhost:") || 
-		   strings.HasPrefix(origin, "http://127.0.0.1:") || 
-		   strings.HasSuffix(origin, ".pages.dev") {
+		configuredOrigin := os.Getenv("FRONTEND_ORIGIN")
+		isProduction := os.Getenv("GIN_MODE") == "release"
+
+		// 1. Strict Production Rule: Only allow the exact matched origin
+		if origin != "" && origin == configuredOrigin {
 			allowed = true
+		}
+
+		// 2. Development/Preview Rules: Only active when NOT in production
+		if !isProduction && origin != "" {
+			if strings.HasPrefix(origin, "http://localhost:") || 
+			   strings.HasPrefix(origin, "http://127.0.0.1:") || 
+			   strings.HasSuffix(origin, ".pages.dev") {
+				allowed = true
+			}
 		}
 
 		if allowed {

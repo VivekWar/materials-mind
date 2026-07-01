@@ -115,11 +115,13 @@ export const useChat = () => {
   // ── Session management ───────────────────────────────────────────────────────
   const createNewSession = useCallback(() => {
     if (!isAuthenticated) return
+    const now = Date.now()
     const tempSession: ChatSession = {
       id: 'temp-new-chat',
       title: 'New chat',
       messages: [],
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     }
     setSessions((current) => [tempSession, ...current.filter(s => s.id !== 'temp-new-chat')])
     setActiveSessionId('temp-new-chat')

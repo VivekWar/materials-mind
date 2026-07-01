@@ -78,65 +78,6 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 }
 
 // ── Type definitions ─────────────────────────────────────────────────────────
-export interface Constraint {
-  id?: string
-  key: string
-  operator: 'min' | 'max' | 'equals' | 'contains'
-  value: string | number
-  label?: string
-}
-
-export interface RangeFilter {
-  min?: number
-  max?: number
-}
-
-export interface IntentJSON {
-  filters: Record<string, RangeFilter>
-  category: string
-  sort_by: string
-  sort_dir: string
-}
-
-export interface Material {
-  id: number
-  name: string
-  formula: string
-  category: string
-  subcategory?: string
-  density?: number
-  glass_transition_temp?: number
-  heat_deflection_temp?: number
-  melting_point?: number
-  boiling_point?: number
-  thermal_conductivity?: number
-  specific_heat?: number
-  thermal_expansion?: number
-  electrical_resistivity?: number
-  yield_strength?: number
-  tensile_strength?: number
-  youngs_modulus?: number
-  hardness_vickers?: number
-  poissons_ratio?: number
-  processing_temp_min_c?: number
-  processing_temp_max_c?: number
-  crystallinity?: number
-  source: string
-}
-
-export interface RecommendResponse {
-  query: string
-  extracted_intent: IntentJSON
-  recommendations: Material[]
-  final_recommendation?: Material
-  top_recommendations?: Material[]
-  routed_category?: string
-  inline_alloy_prediction?: InlineAlloyPrediction
-  structured_result?: StructuredRecommendation
-  report: string
-  tokens_used: number
-}
-
 export interface MaterialCandidate {
   id: number
   name: string
@@ -182,29 +123,6 @@ export interface StructuredRecommendation {
 export interface StructuredSearchResponse {
   structured_result?: StructuredRecommendation
   report: string
-}
-
-export interface InlineAlloyPrediction {
-  summary: string
-  key_findings?: Record<string, string>
-  risk_flags?: string[]
-  confidence?: string
-  should_display: boolean
-}
-
-export interface PredictResponse {
-  composition: Record<string, number>
-  predicted_name: string
-  baseline_properties?: Record<string, number>
-  density?: number
-  melting_point?: number
-  thermal_conductivity?: number
-  electrical_resistivity?: number
-  yield_strength?: number
-  youngs_modulus?: number
-  scientific_explanation?: string
-  method: string
-  notes?: string
 }
 
 export interface ChatTurn {
@@ -269,11 +187,6 @@ interface ApiMessage {
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
-export async function googleLogin(credential: string): Promise<AuthUser> {
-  const { data } = await api.post<{ user: AuthUser }>('/auth/google', { credential })
-  return data.user
-}
-
 export async function getMe(): Promise<AuthUser> {
   const res = await fetchWithAuth(resolveBackendUrl('/auth/me'), {
     credentials: 'include',
@@ -393,59 +306,6 @@ export async function addChatMessage(
   })
   if (!res.ok) throw new Error(`add message failed: HTTP ${res.status}`)
   return mapApiMessage((await res.json()) as ApiMessage)
-}
-
-// ── Recommendation (legacy, kept for reference) ───────────────────────────────
-export async function recommend(
-  query: string,
-  domain: string,
-  constraints?: Constraint[],
-): Promise<RecommendResponse> {
-  const payload: any = { query, domain }
-  if (constraints && constraints.length > 0) {
-    payload.constraints = constraints.map((c) => ({
-      key: c.key,
-      operator: c.operator,
-      value: c.value,
-    }))
-  }
-  let data: RecommendResponse
-  try {
-    const res = await api.post<RecommendResponse>('/recommend', payload)
-    data = res.data
-  } catch {
-    const structured = await searchStructured(query)
-    return {
-      query,
-      extracted_intent: { filters: {}, category: '', sort_by: '', sort_dir: '' },
-      recommendations: [],
-      structured_result: structured.structured_result,
-      report: structured.report,
-      tokens_used: 0,
-    }
-  }
-
-  const recommendations = data.recommendations || []
-  const topRecommendations = recommendations.slice(0, 3)
-
-  return {
-    query: data.query,
-    extracted_intent: data.extracted_intent,
-    recommendations,
-    final_recommendation: data.final_recommendation || topRecommendations[0],
-    top_recommendations: topRecommendations,
-    routed_category: data.extracted_intent?.category,
-    inline_alloy_prediction: data.inline_alloy_prediction,
-    report: data.report,
-    tokens_used: data.tokens_used || 0,
-  }
-}
-
-export async function predict(
-  composition: Record<string, number>,
-): Promise<PredictResponse> {
-  const { data } = await api.post<PredictResponse>('/predict', { composition })
-  return data
 }
 
 // ── Follow-up chat ────────────────────────────────────────────────────────────

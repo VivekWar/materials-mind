@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ArrowRight, Check, Copy, Layers, Target, AlertTriangle, ShieldCheck, Square, User, Database, Download } from 'lucide-react'
+import { ArrowRight, Check, Copy, Layers, Target, ShieldCheck, Square, User, Database } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeSanitize from 'rehype-sanitize'

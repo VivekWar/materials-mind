@@ -35,8 +35,6 @@ func GothCallback(c *gin.Context) {
 	provider := c.Param("provider")
 	req := c.Request.WithContext(context.WithValue(c.Request.Context(), gothic.ProviderParamKey, provider))
 
-	log.Printf("GothCallback received cookies: %v", c.Request.Cookies())
-
 	gothUser, err := gothic.CompleteUserAuth(c.Writer, req)
 	if err != nil {
 		log.Printf("GothCallback error: %v", err)
@@ -124,8 +122,8 @@ func Me(c *gin.Context) {
 		return
 	}
 
-	user.MaxChats = 10
-	user.MaxMessages = 30
+	user.MaxChats = maxChatsPerDay
+	user.MaxMessages = maxMessagesPerDay
 
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
@@ -159,22 +157,6 @@ func upsertUser(ctx context.Context, email, name, provider, providerID string) (
 		return nil, fmt.Errorf("account exists with a different provider")
 	}
 	return &user, nil
-}
-
-func issueSessionCookie(c *gin.Context, userID string) {
-	token, err := utils.GenerateToken(userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
-		return
-	}
-
-	isProd := gin.Mode() == gin.ReleaseMode
-	if isProd {
-		c.SetSameSite(http.SameSiteNoneMode)
-	} else {
-		c.SetSameSite(http.SameSiteLaxMode)
-	}
-	c.SetCookie("session_token", token, 3600*24, "/", "", isProd, true)
 }
 
 func clearSessionCookie(c *gin.Context) {

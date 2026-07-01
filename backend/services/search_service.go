@@ -147,15 +147,15 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 		}, nil
 	}
 
-	// Apply Domain-Awareness Multiplier
+	// Domain-aware rerank: surface candidates whose category matches the
+	// requested industry domain first, so the LLM's context window leads with
+	// the most contextually relevant materials. Stable sort preserves the
+	// underlying vector/keyword relevance order within each group.
 	if industryDomain != "" {
 		domainLower := strings.ToLower(industryDomain)
-		for i := range merged {
-			cat := strings.ToLower(merged[i].Category)
-			if strings.Contains(cat, domainLower) || strings.Contains(domainLower, cat) {
-				// We don't have a score field on Candidate, so we just rely on passing the domain to the LLM
-			}
-		}
+		sort.SliceStable(merged, func(i, j int) bool {
+			return matchesDomain(merged[i].Category, domainLower) && !matchesDomain(merged[j].Category, domainLower)
+		})
 	}
 
 	model := GetGenerativeModel()
@@ -168,6 +168,11 @@ func (s *searchService) ProcessSearch(ctx context.Context, query string, industr
 
 	s.cacheStructuredRecommendation(ctx, cacheKey, recommendation)
 	return recommendation, nil
+}
+
+func matchesDomain(category, domainLower string) bool {
+	catLower := strings.ToLower(category)
+	return catLower != "" && (strings.Contains(catLower, domainLower) || strings.Contains(domainLower, catLower))
 }
 
 func (s *searchService) normalizeSearchQuery(query string) string {

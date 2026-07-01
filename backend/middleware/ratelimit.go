@@ -7,6 +7,8 @@ import (
 	"github.com/vivekwar/materials-mind/backend/db"
 )
 
+const requestsPerMinute = 20
+
 func RateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("user_id")
@@ -25,7 +27,7 @@ func RateLimit() gin.HandlerFunc {
 			db.RedisClient.Expire(c.Request.Context(), key, time.Minute)
 		}
 
-		if count > 20 {
+		if count > requestsPerMinute {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "Rate limit exceeded."})
 			return
 		}

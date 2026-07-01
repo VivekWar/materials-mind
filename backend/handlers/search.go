@@ -1,12 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vivekwar/materials-mind/backend/db"
 	"github.com/vivekwar/materials-mind/backend/services"
 )
 
@@ -38,16 +37,9 @@ func (h *SearchHandler) HybridSearch(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	if userID != "" {
-		userIDInt, err := strconv.ParseInt(userID, 10, 64)
-		if err == nil {
-			var msgCount int
-			err = db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM messages m JOIN chats c ON m.chat_id = c.id WHERE c.user_id = $1 AND m.created_at >= CURRENT_DATE", userIDInt).Scan(&msgCount)
-			if err == nil && msgCount >= 30 {
-				c.JSON(http.StatusForbidden, gin.H{"error": "Daily message limit reached (30 max)."})
-				return
-			}
-		}
+	if dailyMessageQuotaExceeded(c.Request.Context(), userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": fmt.Sprintf("Daily message limit reached (%d max).", maxMessagesPerDay)})
+		return
 	}
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")

@@ -1,0 +1,173 @@
+{
+  "info": {
+    "name": "Materials Mind API",
+    "_postman_id": "8f2b6b8e-2c1a-4f4a-9a3e-materialsmind",
+    "description": "Hybrid RAG Materials Engineering API. Covers every route registered in backend/main.go.\n\n## Auth\nThis API only supports Google OAuth (no password/email login endpoint exists), so Postman cannot obtain a token by itself. To get a token for manual testing:\n1. Run the frontend + backend locally (or point `base_url` at a deployed backend).\n2. Sign in through the actual UI.\n3. Open DevTools -> Application -> Local Storage -> copy the `auth_token` value.\n4. Paste it into this collection's `auth_token` environment variable.\n\nAll requests below (except Health) send `Authorization: Bearer {{auth_token}}` automatically via collection-level auth.\n\n## Notes\n- `POST /api/search` returns a `text/event-stream` (SSE) body. Postman will show the raw event stream rather than rendering it live, which is expected.\n- Daily usage caps (10 chats/day, 30 messages/day per user) are enforced server-side and will return `403` once exceeded.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080", "type": "string" },
+    { "key": "auth_token", "value": "", "type": "string" },
+    { "key": "chat_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness probe",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Deep readiness probe (DB + Redis)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/healthz", "host": ["{{base_url}}"], "path": ["healthz"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Begin Google OAuth (browser only)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/auth/google/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "google", "login"]
+            },
+            "description": "Open this URL in an actual browser, not Postman's runner — it redirects to Google's consent screen and back through a popup postMessage flow that Postman cannot execute."
+          }
+        },
+        {
+          "name": "Get current user",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/auth/logout", "host": ["{{base_url}}"], "path": ["api", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search & RAG",
+      "item": [
+        {
+          "name": "Hybrid search (SSE stream)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/search", "host": ["{{base_url}}"], "path": ["api", "search"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Lightweight alloy for a drone frame, density under 4.5 g/cm3, service temp above 130C\",\n  \"industry_domain\": \"Aerospace\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Follow-up chat message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/chat/followup", "host": ["{{base_url}}"], "path": ["api", "chat", "followup"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Why not use aluminum instead?\",\n  \"history\": [\n    { \"role\": \"user\", \"content\": \"Lightweight alloy for a drone frame\" },\n    { \"role\": \"assistant\", \"content\": \"I recommended Ti-6Al-4V because...\" }\n  ],\n  \"initial_report\": \"I recommended Ti-6Al-4V because...\",\n  \"top_recommendations\": [\"Ti-6Al-4V\", \"Al 7075-T6\"]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Management",
+      "item": [
+        {
+          "name": "Create chat",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/chat/create", "host": ["{{base_url}}"], "path": ["api", "chat", "create"] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"New chat\"\n}" }
+          }
+        },
+        {
+          "name": "List chats",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/chat/list", "host": ["{{base_url}}"], "path": ["api", "chat", "list"] }
+          }
+        },
+        {
+          "name": "Get chat messages",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/chat/{{chat_id}}/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "{{chat_id}}", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Add message to chat",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/chat/{{chat_id}}/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "{{chat_id}}", "messages"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_role\": \"user\",\n  \"content\": { \"text\": \"Lightweight alloy for a drone frame\" },\n  \"content_text\": \"Lightweight alloy for a drone frame\",\n  \"tokens_used\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Archive chat",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/chat/{{chat_id}}/archive",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "{{chat_id}}", "archive"]
+            }
+          }
+        },
+        {
+          "name": "Generate chat title",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/chat/{{chat_id}}/title/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "{{chat_id}}", "title", "generate"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"query\": \"Lightweight alloy for a drone frame\"\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}

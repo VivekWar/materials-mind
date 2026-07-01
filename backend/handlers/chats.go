@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -46,8 +47,8 @@ func (h *ChatHandler) CreateChat(c *gin.Context) {
 	userIDInt, err := strconv.ParseInt(userID, 10, 64)
 	if err == nil {
 		var chatsCount int
-		if err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE", userIDInt).Scan(&chatsCount); err == nil && chatsCount >= 10 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Daily chat limit reached (10 max)."})
+		if err := db.Pool.QueryRow(c.Request.Context(), "SELECT count(*) FROM chats WHERE user_id = $1 AND created_at >= CURRENT_DATE", userIDInt).Scan(&chatsCount); err == nil && chatsCount >= maxChatsPerDay {
+			c.JSON(http.StatusForbidden, gin.H{"error": fmt.Sprintf("Daily chat limit reached (%d max).", maxChatsPerDay)})
 			return
 		}
 	}
