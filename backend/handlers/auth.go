@@ -77,7 +77,8 @@ func GothCallback(c *gin.Context) {
 		<body>
 			<script>
 				if (window.opener) {
-					window.opener.postMessage({ type: 'AUTH_SUCCESS', token: '%s' }, '%s');
+					// Use '*' to ensure it works across all Cloudflare Pages preview URLs
+					window.opener.postMessage({ type: 'AUTH_SUCCESS', token: '%s' }, '*');
 					window.close();
 				} else {
 					window.location.href = '%s/chat?token=%s';
@@ -85,7 +86,7 @@ func GothCallback(c *gin.Context) {
 			</script>
 		</body>
 		</html>
-	`, token, frontendOrigin, frontendOrigin, token)
+	`, token, frontendOrigin, token)
 
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
