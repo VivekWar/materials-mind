@@ -156,6 +156,10 @@ func corsMiddleware() gin.HandlerFunc {
 					break
 				}
 			}
+			// Hardcoded fallbacks for known production domains (in case env vars are misconfigured)
+			if origin == "https://materials-mind.pages.dev" || origin == "https://materials-mind.rans45v.workers.dev" {
+				allowed = true
+			}
 		}
 
 		// 2. Development/Preview Rules: Only active when NOT in production
