@@ -145,12 +145,17 @@ func corsMiddleware() gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 		
 		allowed := false
-		configuredOrigin := strings.TrimRight(os.Getenv("FRONTEND_ORIGIN"), "/")
+		configuredOrigins := strings.Split(os.Getenv("FRONTEND_ORIGIN"), ",")
 		isProduction := os.Getenv("GIN_MODE") == "release"
 
-		// 1. Strict Production Rule: Only allow the exact matched origin
-		if origin != "" && origin == configuredOrigin {
-			allowed = true
+		// 1. Strict Production Rule: Only allow exact matched origins
+		if origin != "" {
+			for _, co := range configuredOrigins {
+				if origin == strings.TrimRight(strings.TrimSpace(co), "/") {
+					allowed = true
+					break
+				}
+			}
 		}
 
 		// 2. Development/Preview Rules: Only active when NOT in production
