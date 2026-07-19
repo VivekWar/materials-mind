@@ -47,6 +47,12 @@ const ChatPage: React.FC = () => {
       // Remove token from URL to keep it clean
       const newUrl = window.location.pathname + window.location.hash
       window.history.replaceState({}, '', newUrl)
+
+      // If we are in a popup window (due to Cross-Origin-Opener-Policy disconnecting opener), close it.
+      // The main window will pick up the token via the 'storage' event listener we added.
+      if (window.opener !== undefined || window.name === 'Google Login') {
+        window.close()
+      }
     }
 
     getMe()

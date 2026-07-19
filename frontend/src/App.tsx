@@ -61,6 +61,25 @@ const App: React.FC = () => {
     return () => window.removeEventListener('message', handleMessage)
   }, [setUser])
 
+  // Listen for localStorage changes (e.g., if popup fell back to redirect and set token)
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'auth_token' && event.newValue) {
+        setAuthToken(event.newValue)
+        getMe()
+          .then(setUser)
+          .then(() => {
+            if (window.location.pathname !== CHAT_ROUTE) {
+              navigateTo(CHAT_ROUTE)
+            }
+          })
+          .catch(() => setUser(null))
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [setUser])
+
   // Minimal client-side router
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
