@@ -50,7 +50,7 @@ const ChatPage: React.FC = () => {
 
       // If we are in a popup window (due to Cross-Origin-Opener-Policy disconnecting opener), close it.
       // The main window will pick up the token via the 'storage' event listener we added.
-      if (window.opener !== undefined || window.name === 'Google Login') {
+      if (window.opener || window.name === 'Google Login') {
         window.close()
       }
     }

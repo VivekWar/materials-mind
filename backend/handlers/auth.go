@@ -67,7 +67,11 @@ func GothCallback(c *gin.Context) {
 
 	frontendOrigin := strings.TrimRight(os.Getenv("FRONTEND_ORIGIN"), "/")
 	if frontendOrigin == "" {
-		frontendOrigin = "http://localhost:5173"
+		if isProd {
+			frontendOrigin = "https://materials-mind.pages.dev"
+		} else {
+			frontendOrigin = "http://localhost:5173"
+		}
 	}
 
 	html := fmt.Sprintf(`
