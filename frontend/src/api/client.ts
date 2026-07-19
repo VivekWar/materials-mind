@@ -39,7 +39,6 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 180000,
-  withCredentials: true,
 })
 
 if (_authToken) {
@@ -188,9 +187,7 @@ interface ApiMessage {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 export async function getMe(): Promise<AuthUser> {
-  const res = await fetchWithAuth(resolveBackendUrl('/auth/me'), {
-    credentials: 'include',
-  })
+  const res = await fetchWithAuth(resolveBackendUrl('/auth/me'))
   if (!res.ok) throw new Error(`me failed: HTTP ${res.status}`)
   const data = (await res.json()) as { user: AuthUser }
   return data.user
@@ -199,7 +196,6 @@ export async function getMe(): Promise<AuthUser> {
 export async function logout(): Promise<void> {
   await fetchWithAuth(resolveBackendUrl('/auth/logout'), {
     method: 'POST',
-    credentials: 'include',
   })
   setAuthToken(null)
 }
@@ -242,7 +238,6 @@ export async function createChat(title = 'New chat'): Promise<ChatSession> {
   const res = await fetchWithAuth(resolveBackendUrl('/chat/create'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ title }),
   })
   if (!res.ok) {
@@ -257,7 +252,6 @@ export async function generateChatTitle(chatId: string, query: string): Promise<
   const res = await fetchWithAuth(resolveBackendUrl(`/chat/${chatId}/title/generate`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ query }),
   })
   if (!res.ok) throw new Error('Failed to generate title')
@@ -266,18 +260,14 @@ export async function generateChatTitle(chatId: string, query: string): Promise<
 }
 
 export async function listChats(): Promise<ChatSession[]> {
-  const res = await fetchWithAuth(resolveBackendUrl('/chat/list'), {
-    credentials: 'include',
-  })
+  const res = await fetchWithAuth(resolveBackendUrl('/chat/list'))
   if (!res.ok) throw new Error(`list chats failed: HTTP ${res.status}`)
   const data = (await res.json()) as { chats: ApiChat[] }
   return (data.chats || []).map((chat) => mapApiChat(chat))
 }
 
 export async function getChatMessages(chatId: string): Promise<ChatMessage[]> {
-  const res = await fetchWithAuth(resolveBackendUrl(`/chat/${chatId}/messages`), {
-    credentials: 'include',
-  })
+  const res = await fetchWithAuth(resolveBackendUrl(`/chat/${chatId}/messages`))
   if (!res.ok) throw new Error(`get messages failed: HTTP ${res.status}`)
   const data = (await res.json()) as { messages: ApiMessage[] }
   return (data.messages || []).map(mapApiMessage)
@@ -296,7 +286,6 @@ export async function addChatMessage(
   const res = await fetchWithAuth(resolveBackendUrl(`/chat/${chatId}/messages`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({
       sender_role: isUser ? 'user' : 'assistant',
       content,
@@ -315,7 +304,6 @@ export async function chatFollowup(
   const res = await fetchWithAuth(resolveBackendUrl('/chat/followup'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
@@ -382,7 +370,6 @@ export async function searchStructured(
   const res = await fetchWithAuth(searchURL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({ query }),
     signal,
   })
@@ -443,7 +430,7 @@ export async function pingStatus(): Promise<boolean> {
     const root = baseURL.endsWith('/api')
       ? baseURL.slice(0, -4)
       : baseURL.replace(/\/api\/v1$/, '')
-    const res = await fetchWithAuth(`${root}/health`, { credentials: 'include' })
+    const res = await fetchWithAuth(`${root}/health`)
     return res.ok
   } catch {
     return false
